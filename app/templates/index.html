@@ -1,0 +1,1811 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN">
+<html>
+<head>
+  <title>EM Pill Dropper</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='reset.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='emstyle.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='jquery-ui.css') }}">
+
+  <script src="{{ url_for('static', filename='jquery-1.7.2.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='jquery-ui.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='jquery.ui.touch-punch.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='jquery.knob.js') }}"></script>
+
+  
+  <style type="text/css">
+  /*.ui-slider-vertical .ui-state-default {background: white url(http://onlinehelp.avs4you.com/images/VideoEditor/CursorSliderArea.png) no-repeat scroll 50% 50%;}*/
+  .ui-slider-vertical .ui-slider-handle {
+    background: url('/static/slider_vertical.png') no-repeat scroll 50% 50%; 
+    border: none;
+    outline: none;
+    min-width: 315%;
+    max-width: 315%;
+    min-height: 65%;
+    max-height: 65%;
+    cursor: pointer;
+  }
+  .ui-slider-horizontal .ui-slider-handle {
+    background: url('/static/slider_horizontal.png') no-repeat scroll 50% 50%; 
+    border: none; 
+    outline: none;
+    height: 42px;
+    width: 68px;
+    cursor: pointer;
+  }
+  </style>
+
+
+  <script>
+  var slider1_value = 1;
+  var slider2_value = 1;
+  var slider3_value = 1;
+  var slider4_value = 1;
+  var slider5_value = 1;
+  var slider6_value = 1;
+  var slider7_value = 1;
+  var slider8_value = 1;
+  var slider9_value = 1;
+  var slider10_value = 1;
+
+  var force_different_songs = true;
+  var force_different_segments = true;
+
+  var setSliders = false;
+  var useLoudness = false;
+  var useNoisiness = false;
+  var useSparseness = false;
+  var useBass = false;
+  var useHigh = false;
+
+  var currentlyPlaying = true;
+  var showingMixer = true;
+
+  var current_song = "";
+  var current_artist = "";
+  var current_song_year = "";
+
+  var starred_songs = [];
+  var last_played_songs = [];
+  var show_tips = true;
+  var tooltips_eng = [ "Loudness is related to the perception of physical strength of audio. Higher values will lead to loudest segments.", 
+    "By noisiness we mean the amount of dissonance. Higher values will lead to most dissonant segments.",
+    "The amount of rhythmic events. Higher values will generally lead to segments where drums are more present.",
+    "The amount of frequency bands upper a certain thresholds. Higher values will lead to more spectrum-rich segments.",
+    "This slider sets the amount of acousticness of segments. Use lower values to get the most electronic and distorted segments."]
+
+  var language_selected = 0  // 0=english, 1=spanish, 2=catalan
+  var language_menu_shown = false;
+
+  // highly rhytmic = [4, !0, 4, !0, 1]
+  // noise = [!0, 4, 1, 4, 1]
+  // calm = [!0, !0, 1, !0, 4]
+
+
+  function changeLanguage(lan) {
+    if (lan == 0) {
+      $( "ul#language-menu").html("<li onclick=\"changeLanguage(0)\"><img src=\"{{ url_for('static', filename='eng.png') }}\" /><p>Eng</p></li>");
+      $( "#language-selected").html("<img src=\"{{ url_for('static', filename='eng.png') }}\" /><p>Eng</p>");
+      $( "ul#language-menu").append("<li onclick=\"changeLanguage(1)\"><img src=\"{{ url_for('static', filename='esp.png') }}\" /><p>Esp</p></li>");
+      $( "ul#language-menu").append("<li onclick=\"changeLanguage(2)\"><img src=\"{{ url_for('static', filename='cat.png') }}\" /><p>Cat</p></li>");
+      language_selected = 0;
+    }
+    else if (lan == 1) {
+      $( "ul#language-menu").html("<li onclick=\"changeLanguage(1)\"><img src=\"{{ url_for('static', filename='esp.png') }}\" /><p>Esp</p></li>");
+      $( "#language-selected").html("<img src=\"{{ url_for('static', filename='esp.png') }}\" /><p>Esp</p>");
+      $( "ul#language-menu").append("<li onclick=\"changeLanguage(0)\"><img src=\"{{ url_for('static', filename='eng.png') }}\" /><p>Eng</p></li>");
+      $( "ul#language-menu").append("<li onclick=\"changeLanguage(2)\"><img src=\"{{ url_for('static', filename='cat.png') }}\" /><p>Cat</p></li>");
+      language_selected = 1;
+    }
+    else if (lan == 2) {
+      $( "ul#language-menu").html("<li onclick=\"changeLanguage(2)\"><img src=\"{{ url_for('static', filename='cat.png') }}\" /><p>Cat</p></li>");
+      $( "#language-selected").html("<img src=\"{{ url_for('static', filename='cat.png') }}\" /><p>Cat</p>");
+      $( "ul#language-menu").append("<li onclick=\"changeLanguage(0)\"><img src=\"{{ url_for('static', filename='eng.png') }}\" /><p>Eng</p></li>");
+      $( "ul#language-menu").append("<li onclick=\"changeLanguage(1)\"><img src=\"{{ url_for('static', filename='esp.png') }}\" /><p>Esp</p></li>");
+      language_selected = 2;
+    }
+    hideLanguageMenu();
+    adaptChanges();
+    language_menu_shown = false;
+  }
+
+  function adaptChanges() {
+    // if (language_selected == 1)
+    //   $("#hints-label").html("Suggerimenti:");
+
+    
+    // Loudness is related to the perception of physical strength of audio. Higher values will lead to loudest segments.
+    // By noisiness we mean the amount of dissonance. Higher values will lead to most dissonant segments.
+    // The amount of rhythmic events. Higher values will generally lead to segments where drums are more present.
+    // The amount of frequency bands upper a certain thresholds. Higher values will lead to more spectrum-rich segments.
+    // This slider sets the amount of acousticness of segments. Use lower values to get the most electronic and distorted segments.
+    // TIPS: ,
+    //   Starred Tracks &raquo;  
+    // LANGUAGE: , 
+    //  &#9733; Add current song , 
+    // Clear list ,
+    // Starred tracks: , 
+    // Title , 
+    // Artist , 
+    // Year ,
+    // Last tracks played: ,
+    // Starred , 
+    // Delete
+    // Two consecutive segments must be different ,
+    // Two consecutive segments must belong to different songs ,
+    // Software developed by Giuseppe Bandiera, supervised by Dr. Perfecto Herrera Boyer.
+    //]
+  }
+
+  function showLanguageMenu(clicked) {
+    if (clicked)
+      if (language_menu_shown)
+      {
+        hideLanguageMenu();
+        language_menu_shown = false;
+        return;
+      }
+    $( "#language-selected").css("display", "none");
+    $( "#language-selected-wrapper" ).css("height", "88px");
+    $( "ul#language-menu" ).css("display", "block");
+    $( ".credits" ).css("margin-top", "7px");
+  }
+
+  function hideLanguageMenu() {
+    $( "ul#language-menu" ).css("display", "none");
+    $( "#language-selected-wrapper" ).css("height", "25px");
+    $( "#language-selected").css("display", "-webkit-inline-box");
+    $( ".credits" ).css("margin-top", "70px");
+  }
+
+  function handleCheckbox(cb) {
+  show_tips = cb.checked;
+}
+
+
+var hasAlreadyBeenFlipped = false;
+
+function deleteTrack(title, artist, year) {
+  starred_songs_copy = [];
+  if (hasAlreadyBeenFlipped) {
+    for (var i = 0; i <= starred_songs.length - 1; i++) {
+      if ((starred_songs[i][0] != title) || (starred_songs[i][1] != artist) || (starred_songs[i][2] != year)) {
+        tmp_array = [starred_songs[i][0], starred_songs[i][1], starred_songs[i][2]];
+        starred_songs_copy.push(tmp_array);
+      }
+    }
+  }
+  else {
+    for (var i = starred_songs.length - 1; i >= 0; i--) {
+      if ((starred_songs[i][0] != title) || (starred_songs[i][1] != artist) || (starred_songs[i][2] != year)) {
+        tmp_array = [starred_songs[i][0], starred_songs[i][1], starred_songs[i][2]];
+        starred_songs_copy.push(tmp_array);
+      }
+    }
+    hasAlreadyBeenFlipped = true;
+  }
+
+  starred_songs = starred_songs_copy;
+  $(".songstableclass").html("");
+  for (var i = 0; i <=  starred_songs.length - 1; i++)
+  {
+    $('.songstableclass').append('<tr><td class="title" style="width:40%;">' + starred_songs[i][0] + '</td><td class="artist" style="width:40%;">' + starred_songs[i][1] + '</td><td class="year" style="width:10%;">' +starred_songs[i][2] + '</td><td><button type="button" class="delete-track-button" onclick="deleteTrackHandler(this);" style="background: transparent; border: none; font-size: 1.4vw; margin-left: 19%; outline: none; cursor: pointer;">☒</button></td></tr>');
+  }
+}
+
+  function deleteTrackHandler(button) {
+      var $row = $(button).closest("tr");    // Find the row
+      var $title = $row.find(".title").text(); // Find the title
+      var $artist = $row.find(".artist").text(); // Find the artist
+      var $year = $row.find(".year").text(); // Find the year
+      deleteTrack($title, $artist, $year); 
+  }
+
+
+  function showAdvancedSettings() {
+    $( "#advanced-settings" ).fadeIn( "slow", function() {
+    // Animation complete
+    });
+  }
+
+  function hideAdvancedSettings() {
+    $( "#advanced-settings" ).fadeOut( "slow", function() {
+    // Animation complete
+    });
+  }
+
+
+  function addStarredSong(song, artist, year) {
+    if (!hasAlreadyBeenStarred(song, artist, year)) {
+      var tmp_array = [song, artist, year];
+      starred_songs.push(tmp_array);
+      $(".songstableclass").html("");
+      for (var i = starred_songs.length - 1; i >= 0; i--)
+      {
+        $('.songstableclass').append('<tr><td class="title" style="width:40%;">' + starred_songs[i][0] + '</td><td class="artist" style="width:40%;">' + starred_songs[i][1] + '</td><td class="year" style="width:10%;">' +starred_songs[i][2] + '</td><td><button type="button" class="delete-track-button" onclick="deleteTrackHandler(this);" style="background: transparent; border: none; font-size: 1.4vw; margin-left: 19%; outline: none; cursor: pointer;">☒</button></td></tr>');
+      }
+    }
+  }
+
+
+  function hasAlreadyBeenStarred(song, artist, year) {
+    for (var i = 0; i < starred_songs.length; i++) {
+      if (starred_songs[i][0] == song && starred_songs[i][1] == artist && starred_songs[i][2] == year) {
+        return true;
+      }
+    }
+  }
+
+  function addStarredSongHandler(button) {
+    var $row = $(button).closest("tr");    // Find the row
+    var $title = $row.find(".title").text(); // Find the text
+    var $artist = $row.find(".artist").text(); // Find the text
+    var $year = $row.find(".year").text(); // Find the text
+    
+    addStarredSong($title, $artist, $year);
+    alreadyClicked = true;
+    $(button).html("★");
+  }
+
+    $(function() {
+        $(".dial").knob({
+          'change': function(value) {
+            if (value < 5) {
+              $("#volume-knob").css("background", "url('../static/knob0.png') no-repeat");
+              $.post('/volume', {
+                            volume: Math.floor(value) // cast to int
+                        }).done(function() {
+                            //console.log("Ok")
+                        }).fail(function() {
+                            //console.log("uff")
+                        });
+            }
+            else if (value < 25) {
+              $("#volume-knob").css("background", "url('../static/knob20.png') no-repeat");
+              $.post('/volume', {
+                            volume: Math.floor(value) // cast to int
+                        }).done(function() {
+                            //console.log("Ok")
+                        }).fail(function() {
+                            //console.log("uff")
+                        });
+            }
+            else if (value < 45) {
+              $("#volume-knob").css("background", "url('../static/knob40.png') no-repeat");
+              $.post('/volume', {
+                            volume: Math.floor(value) // cast to int
+                        }).done(function() {
+                            //console.log("Ok")
+                        }).fail(function() {
+                            //console.log("uff")
+                        });
+            }
+            else if (value < 65) {
+              $("#volume-knob").css("background", "url('../static/knob60.png') no-repeat");
+              $.post('/volume', {
+                            volume: Math.floor(value) // cast to int
+                        }).done(function() {
+                            //console.log("Ok")
+                        }).fail(function() {
+                            //console.log("uff")
+                        });
+            }
+            else if (value < 85) {
+              $("#volume-knob").css("background", "url('../static/knob80.png') no-repeat");
+              $.post('/volume', {
+                            volume: Math.floor(value) // cast to int
+                        }).done(function() {
+                            //console.log("Ok")
+                        }).fail(function() {
+                            //console.log("uff")
+                        });
+            }
+            else {
+              $("#volume-knob").css("background", "url('../static/knob100.png') no-repeat");
+              $.post('/volume', {
+                            volume: Math.floor(value) // cast to int
+                        }).done(function() {
+                            //console.log("Ok")
+                        }).fail(function() {
+                            //console.log("uff")
+                        });
+            }
+            // console.log(value);
+          },
+          'angleArc': 250,
+          'fgColor': "rgba(0, 0, 0, 0.0)",
+          'bgColor': "rgba(255, 255, 255, 0.0)",
+          'angleOffset': -125, 
+          'width': 100, 
+          'thickness':.8, 
+          'step':20,
+          'displayInput':false,
+          'cursor':true
+        });
+    });
+
+  function handlePlaybackCheckbox(cb) {
+    if (cb.checked) {
+      $("#playbackmins").css("opacity", "1")
+      $("select#playback").prop("disabled", false);
+      $("select#playback").css("cursor", "pointer");
+    }
+    else {
+      $("#playbackmins").css("opacity", "0.2")
+      $("select#playback").prop("disabled", true);
+      $("select#playback").css("cursor", "default");
+    }
+  }
+
+  function handleCheckboxSetting1(cb) {
+    if (cb.checked) {
+      $("#settings-line2").css("opacity", "0.2");
+      $("#checkboxsetting2").prop("checked", true);
+      $("#checkboxsetting2").prop("disabled", true);
+      $("#switchsetting2").css("cursor", "default");
+      force_different_songs = true;
+      force_different_segments = true;
+      $.post('/repsegments', {
+                    different_songs: force_different_songs,
+                    different_segments: force_different_segments
+                }).done(function() {
+                    //console.log("Ok")
+                }).fail(function() {
+                    //console.log("uff")
+                });
+    }
+    else {
+      $("#settings-line2").css("opacity", "1");
+      $("#checkboxsetting2").prop("disabled", false);
+      $("#switchsetting2").css("cursor", "pointer");
+      force_different_songs = false;
+      $.post('/repsegments', {
+                    different_songs: force_different_songs,
+                    different_segments: force_different_segments
+                }).done(function() {
+                    //console.log("Ok")
+                }).fail(function() {
+                    //console.log("uff")
+                });
+    }
+  }
+
+  function handleCheckboxSetting2(cb) {
+    if (cb.checked) {
+      force_different_segments = true;
+      $.post('/repsegments', {
+                    different_songs: force_different_songs,
+                    different_segments: force_different_segments
+                }).done(function() {
+                    //console.log("Ok")
+                }).fail(function() {
+                    //console.log("uff")
+                });
+    }
+    else {
+      force_different_segments = false;
+      $.post('/repsegments', {
+                    different_songs: force_different_songs,
+                    different_segments: force_different_segments
+                }).done(function() {
+                    //console.log("Ok")
+                }).fail(function() {
+                    //console.log("uff")
+                });
+    }
+  }
+
+  $(function() {
+    $( "#slider" ).slider({ 
+	orientation: "vertical", 
+	step: 1, 
+  animate: true,
+	/*range: "min",
+	value: 50,*/
+	min: 0,
+	max: 3,
+	slide: function( event, ui ) {
+				  val = ui.value;
+				  slider1_value = val;
+          if (setSliders)
+          {
+            $.post('/updateslider', {
+                          slider1: slider1_value,
+                          slider2: slider2_value,
+                          slider3: slider3_value,
+                          slider4: slider4_value,
+                          slider5: slider5_value,
+                          slider6: slider6_value,
+                          slider7: slider7_value,
+                          slider8: slider8_value,
+                          slider9: slider9_value,
+                          slider10: slider10_value
+                      }).done(function() {
+                          //console.log("Ok")
+                      }).fail(function() {
+                          //console.log("uff")
+                      });
+          }
+
+          else
+          {
+            slider2_value = 0;
+            slider3_value = 0;
+            slider4_value = 0;
+            slider5_value = 0;
+            setSliders = true
+            $.post('/updateslider', {
+                          slider1: slider1_value,
+                          slider2: slider2_value,
+                          slider3: slider3_value,
+                          slider4: slider4_value,
+                          slider5: slider5_value,
+                          slider6: slider6_value,
+                          slider7: slider7_value,
+                          slider8: slider8_value,
+                          slider9: slider9_value,
+                          slider10: slider10_value
+                      }).done(function() {
+                          //console.log("Ok")
+                      }).fail(function() {
+                          //console.log("uff")
+                      });
+          }
+                  //console.log(ui.value);
+                  
+
+      }
+	});
+  });
+
+  $(function() {
+    $( "#slider2" ).slider({ 
+	orientation: "vertical", 
+  animate: true,
+	step: 1, 
+	/*range: "min",
+	value: 50,*/
+	min: 0,
+	max: 3,
+	slide: function( event, ui ) {
+				  val = ui.value;
+				  slider2_value = val;
+          if (setSliders)
+          {
+            $.post('/updateslider', {
+                          slider1: slider1_value,
+                          slider2: slider2_value,
+                          slider3: slider3_value,
+                          slider4: slider4_value,
+                          slider5: slider5_value,
+                          slider6: slider6_value,
+                          slider7: slider7_value,
+                          slider8: slider8_value,
+                          slider9: slider9_value,
+                          slider10: slider10_value
+                      }).done(function() {
+                          //console.log("Ok")
+                      }).fail(function() {
+                          //console.log("uff")
+                      });
+          }
+
+          else
+          {
+            slider1_value = 0;
+            slider3_value = 0;
+            slider4_value = 0;
+            slider5_value = 0;
+            setSliders = true
+            $.post('/updateslider', {
+                          slider1: slider1_value,
+                          slider2: slider2_value,
+                          slider3: slider3_value,
+                          slider4: slider4_value,
+                          slider5: slider5_value,
+                          slider6: slider6_value,
+                          slider7: slider7_value,
+                          slider8: slider8_value,
+                          slider9: slider9_value,
+                          slider10: slider10_value
+                      }).done(function() {
+                          //console.log("Ok")
+                      }).fail(function() {
+                          //console.log("uff")
+                      });
+          }
+        }
+	});
+  });
+
+  $(function() {
+    $( "#slider3" ).slider({ 
+	orientation: "vertical", 
+  animate: true,
+	step: 1, 
+	/*range: "min",
+	value: 50,*/
+	min: 0,
+	max: 3,
+	slide: function( event, ui ) {
+				  val = ui.value;
+				  slider3_value = val;
+          if (setSliders)
+          {
+            $.post('/updateslider', {
+                          slider1: slider1_value,
+                          slider2: slider2_value,
+                          slider3: slider3_value,
+                          slider4: slider4_value,
+                          slider5: slider5_value,
+                          slider6: slider6_value,
+                          slider7: slider7_value,
+                          slider8: slider8_value,
+                          slider9: slider9_value,
+                          slider10: slider10_value
+                      }).done(function() {
+                          //console.log("Ok")
+                      }).fail(function() {
+                          //console.log("uff")
+                      });
+          }
+
+          else
+          {
+            slider1_value = 0;
+            slider2_value = 0;
+            slider4_value = 0;
+            slider5_value = 0;
+            setSliders = true
+            $.post('/updateslider', {
+                          slider1: slider1_value,
+                          slider2: slider2_value,
+                          slider3: slider3_value,
+                          slider4: slider4_value,
+                          slider5: slider5_value,
+                          slider6: slider6_value,
+                          slider7: slider7_value,
+                          slider8: slider8_value,
+                          slider9: slider9_value,
+                          slider10: slider10_value
+                      }).done(function() {
+                          //console.log("Ok")
+                      }).fail(function() {
+                          //console.log("uff")
+                      });
+          }
+
+      }
+	});
+  });
+
+  $(function() {
+    $( "#slider4" ).slider({ 
+	orientation: "vertical", 
+  animate: true,
+	step: 1, 
+	/*range: "min",
+	value: 50,*/
+	min: 0,
+	max: 3,
+	slide: function( event, ui ) {
+				  val = ui.value;
+				  slider4_value = val;
+          if (setSliders)
+          {
+            $.post('/updateslider', {
+                          slider1: slider1_value,
+                          slider2: slider2_value,
+                          slider3: slider3_value,
+                          slider4: slider4_value,
+                          slider5: slider5_value,
+                          slider6: slider6_value,
+                          slider7: slider7_value,
+                          slider8: slider8_value,
+                          slider9: slider9_value,
+                          slider10: slider10_value
+                      }).done(function() {
+                          //console.log("Ok")
+                      }).fail(function() {
+                          //console.log("uff")
+                      });
+          }
+
+          else
+          {
+            slider1_value = 0;
+            slider2_value = 0;
+            slider3_value = 0;
+            slider5_value = 0;
+            setSliders = true
+            $.post('/updateslider', {
+                          slider1: slider1_value,
+                          slider2: slider2_value,
+                          slider3: slider3_value,
+                          slider4: slider4_value,
+                          slider5: slider5_value,
+                          slider6: slider6_value,
+                          slider7: slider7_value,
+                          slider8: slider8_value,
+                          slider9: slider9_value,
+                          slider10: slider10_value
+                      }).done(function() {
+                          //console.log("Ok")
+                      }).fail(function() {
+                          //console.log("uff")
+                      });
+          }
+
+        }
+	});
+  });
+
+  $(function() {
+    $( "#slider5" ).slider({ 
+	orientation: "vertical", 
+  animate: true,
+	step: 1, 
+	/*range: "min",
+	value: 50,*/
+	min: 0,
+	max: 3,
+	slide: function( event, ui ) {
+				  val = ui.value;
+				  slider5_value = val;
+          if (setSliders)
+          {
+            $.post('/updateslider', {
+                          slider1: slider1_value,
+                          slider2: slider2_value,
+                          slider3: slider3_value,
+                          slider4: slider4_value,
+                          slider5: slider5_value,
+                          slider6: slider6_value,
+                          slider7: slider7_value,
+                          slider8: slider8_value,
+                          slider9: slider9_value,
+                          slider10: slider10_value
+                      }).done(function() {
+                          //console.log("Ok")
+                      }).fail(function() {
+                          //console.log("uff")
+                      });
+          }
+
+          else
+          {
+            slider1_value = 0;
+            slider2_value = 0;
+            slider3_value = 0;
+            slider4_value = 0;
+            setSliders = true
+            $.post('/updateslider', {
+                          slider1: slider1_value,
+                          slider2: slider2_value,
+                          slider3: slider3_value,
+                          slider4: slider4_value,
+                          slider5: slider5_value,
+                          slider6: slider6_value,
+                          slider7: slider7_value,
+                          slider8: slider8_value,
+                          slider9: slider9_value,
+                          slider10: slider10_value
+                      }).done(function() {
+                          //console.log("Ok")
+                      }).fail(function() {
+                          //console.log("uff")
+                      });
+          }
+
+          }
+	});
+  });
+
+  $(function() {
+    var tooltip = $('.tooltip6');
+    tooltip.hide(); 
+    $( "#slider6" ).slider({ 
+	orientation: "vertical", 
+  animate: true,
+	step: 1, 
+	/*range: "min",
+	value: 50,*/
+	min: 1,
+	max: 4,
+  start: function(event,ui) {
+      if (show_tips)
+        tooltip.fadeIn('fast');
+    },
+  stop: function(event,ui) {
+      tooltip.fadeOut('fast');
+    },
+	slide: function( event, ui ) {
+				  val = ui.value;
+				  slider6_value = val;
+          tooltip.text(tooltips_eng[0]);
+          //console.log(ui.value);
+          $.post('/updateslider', {
+                  slider1: slider1_value,
+                  slider2: slider2_value,
+                  slider3: slider3_value,
+                  slider4: slider4_value,
+                  slider5: slider5_value,
+                  slider6: slider6_value,
+                  slider7: slider7_value,
+                  slider8: slider8_value,
+                  slider9: slider9_value,
+                  slider10: slider10_value
+              }).done(function() {
+                  //console.log("Ok")
+              }).fail(function() {
+                  //console.log("uff")
+              });
+
+          if (!useLoudness)
+          {
+            useLoudness = true;
+            $('#loudness_button').css("background", "url('../static/loudness_on.png') no-repeat"); 
+            $('#loudness_button').css("background-size", "100%");
+            $('#loudness_button').css("width", "10.7%");
+            $('#loudness_button').css("height", "10%");
+
+            $.post('/usesliders', {
+                              loudness: useLoudness,
+                              noisiness: useNoisiness,
+                              sparseness: useSparseness,
+                              bass: useBass,
+                              high: useHigh
+                          }).done(function() {
+                              //console.log("Ok")
+                          }).fail(function() {
+                              //console.log("uff")
+                          });
+
+          }
+
+       }
+	});
+  });
+
+  $(function() {
+    var tooltip = $('.tooltip7');
+    tooltip.hide();
+    $( "#slider7" ).slider({ 
+	orientation: "vertical", 
+  animate: true,
+	step: 1, 
+	/*range: "min",
+	value: 50,*/
+	min: 1,
+	max: 4,
+  start: function(event,ui) {
+      if (show_tips)
+        tooltip.fadeIn('fast');
+    },
+  stop: function(event,ui) {
+      tooltip.fadeOut('fast');
+    },
+	slide: function( event, ui ) {
+				  val = ui.value;
+				  slider7_value = val;
+          tooltip.text(tooltips_eng[1]);
+          //console.log(ui.value);
+          $.post('/updateslider', {
+                  slider1: slider1_value,
+                  slider2: slider2_value,
+                  slider3: slider3_value,
+                  slider4: slider4_value,
+                  slider5: slider5_value,
+                  slider6: slider6_value,
+                  slider7: slider7_value,
+                  slider8: slider8_value,
+                  slider9: slider9_value,
+                  slider10: slider10_value
+              }).done(function() {
+                  //console.log("Ok")
+              }).fail(function() {
+                  //console.log("uff")
+              });
+
+          if (!useNoisiness)
+          {
+            useNoisiness = true;
+            $('#noisiness_button').css("background", "url('../static/noise_on.png') no-repeat"); 
+            $('#noisiness_button').css("background-size", "100%");
+            $('#noisiness_button').css("width", "10.7%");
+            $('#noisiness_button').css("height", "10%");
+
+            $.post('/usesliders', {
+                              loudness: useLoudness,
+                              noisiness: useNoisiness,
+                              sparseness: useSparseness,
+                              bass: useBass,
+                              high: useHigh
+                          }).done(function() {
+                              //console.log("Ok")
+                          }).fail(function() {
+                              //console.log("uff")
+                          });
+
+          }
+
+       }
+	});
+  });
+
+  $(function() {
+    var tooltip = $('.tooltip8');
+    tooltip.hide();
+    $( "#slider8" ).slider({ 
+	orientation: "vertical", 
+  animate: true,
+	step: 1, 
+	/*range: "min",
+	value: 50,*/
+	min: 1,
+	max: 4,
+  start: function(event,ui) {
+      if (show_tips)
+        tooltip.fadeIn('fast');
+    },
+  stop: function(event,ui) {
+      tooltip.fadeOut('fast');
+    },
+	slide: function( event, ui ) {
+				  val = ui.value;
+				  slider8_value = val;
+          tooltip.text(tooltips_eng[2]);
+          $.post('/updateslider', {
+                  slider1: slider1_value,
+                  slider2: slider2_value,
+                  slider3: slider3_value,
+                  slider4: slider4_value,
+                  slider5: slider5_value,
+                  slider6: slider6_value,
+                  slider7: slider7_value,
+                  slider8: slider8_value,
+                  slider9: slider9_value,
+                  slider10: slider10_value
+              }).done(function() {
+                  //console.log("Ok")
+              }).fail(function() {
+                  //console.log("uff")
+              });
+
+          if (!useSparseness)
+          {
+            useSparseness = true;
+            $('#sparseness_button').css("background", "url('../static/rhythm_on.png') no-repeat"); 
+            $('#sparseness_button').css("background-size", "100%");
+            $('#sparseness_button').css("width", "10.7%");
+            $('#sparseness_button').css("height", "10%");
+
+            $.post('/usesliders', {
+                              loudness: useLoudness,
+                              noisiness: useNoisiness,
+                              sparseness: useSparseness,
+                              bass: useBass,
+                              high: useHigh
+                          }).done(function() {
+                              //console.log("Ok")
+                          }).fail(function() {
+                              //console.log("uff")
+                          });
+
+          }
+
+        }
+	});
+  });
+  
+    $(function() {
+    var tooltip = $('.tooltip9');
+    tooltip.hide();
+    $( "#slider9" ).slider({ 
+	orientation: "vertical", 
+  animate: true,
+	step: 1, 
+	/*range: "min",
+	value: 50,*/
+	min: 1,
+	max: 4,
+  start: function(event,ui) {
+      if (show_tips)
+        tooltip.fadeIn('fast');
+    },
+  stop: function(event,ui) {
+      tooltip.fadeOut('fast');
+    },
+	slide: function( event, ui ) {
+				  val = ui.value;
+				  slider9_value = val;
+          tooltip.text(tooltips_eng[3]);
+          //console.log(ui.value);
+          $.post('/updateslider', {
+                  slider1: slider1_value,
+                  slider2: slider2_value,
+                  slider3: slider3_value,
+                  slider4: slider4_value,
+                  slider5: slider5_value,
+                  slider6: slider6_value,
+                  slider7: slider7_value,
+                  slider8: slider8_value,
+                  slider9: slider9_value,
+                  slider10: slider10_value
+              }).done(function() {
+                  //console.log("Ok")
+              }).fail(function() {
+                  //console.log("uff")
+              });
+
+          if (!useBass)
+          {
+            useBass = true;
+            $('#bass_button').css("background", "url('../static/bands_on.png') no-repeat"); 
+            $('#bass_button').css("background-size", "100%");
+            $('#bass_button').css("width", "10.7%");
+            $('#bass_button').css("height", "10%");
+
+            $.post('/usesliders', {
+                              loudness: useLoudness,
+                              noisiness: useNoisiness,
+                              sparseness: useSparseness,
+                              bass: useBass,
+                              high: useHigh
+                          }).done(function() {
+                              //console.log("Ok")
+                          }).fail(function() {
+                              //console.log("uff")
+                          });
+
+          }
+
+       }
+	});
+  });
+
+     $(function() {
+    var tooltip = $('.tooltip10');
+    tooltip.hide();
+    $( "#slider10" ).slider({ 
+	orientation: "vertical", 
+  animate: true,
+	step: 1, 
+	/*range: "min",
+	value: 50,*/
+	min: 1,
+	max: 4,
+  start: function(event,ui) {
+      if (show_tips)
+        tooltip.fadeIn('fast');
+    },
+  stop: function(event,ui) {
+      tooltip.fadeOut('fast');
+    },
+	slide: function( event, ui ) {
+				  val = ui.value;
+				  slider10_value = val;
+          tooltip.text(tooltips_eng[4]);
+          //console.log(ui.value);
+          $.post('/updateslider', {
+                  slider1: slider1_value,
+                  slider2: slider2_value,
+                  slider3: slider3_value,
+                  slider4: slider4_value,
+                  slider5: slider5_value,
+                  slider6: slider6_value,
+                  slider7: slider7_value,
+                  slider8: slider8_value,
+                  slider9: slider9_value,
+                  slider10: slider10_value
+              }).done(function() {
+                  //console.log("Ok")
+              }).fail(function() {
+                  //console.log("uff")
+              });
+
+          if (!useHigh)
+          {
+            useHigh = true;
+            $('#high_button').css("background", "url('../static/acoustic_on.png') no-repeat"); 
+            $('#high_button').css("background-size", "100%");
+            $('#high_button').css("width", "10.7%");
+            $('#high_button').css("height", "10%");
+
+            $.post('/usesliders', {
+                              loudness: useLoudness,
+                              noisiness: useNoisiness,
+                              sparseness: useSparseness,
+                              bass: useBass,
+                              high: useHigh
+                          }).done(function() {
+                              //console.log("Ok")
+                          }).fail(function() {
+                              //console.log("uff")
+                          });
+
+          }
+
+       }
+	});
+  });
+
+
+  $(function() {
+    $( "#slidersegmentlength" ).slider({ 
+  orientation: "horizontal", 
+  step: 1, 
+  /*range: "min",
+  value: 50,*/
+  min: 1,
+  max: 5,
+  slide: function( event, ui ) {
+          val = ui.value;
+          console.log(val);
+          $.post('/segmentlength', {
+                              length: val
+                          }).done(function() {
+                              //console.log("Ok")
+                          }).fail(function() {
+                              //console.log("uff")
+                          });
+      }
+  });
+  });
+  
+
+
+$(document).ready(function() {
+
+    // preload images
+    (new Image()).src = '../static/loudness_on.png';
+    (new Image()).src = '../static/noise_on.png';
+    (new Image()).src = '../static/rhythm_on.png';
+    (new Image()).src = '../static/bands_on.png';
+    (new Image()).src = '../static/acoustic_on.png';
+    (new Image()).src = '../static/play.png';
+    (new Image()).src = '../static/knob0.png';
+    (new Image()).src = '../static/knob20.png';
+    (new Image()).src = '../static/knob40.png';
+    (new Image()).src = '../static/knob60.png';
+    (new Image()).src = '../static/knob80.png';
+
+
+    $( "#loudness_button" ).click(function() {
+        if (useLoudness)
+        {
+           useLoudness = false;
+           $('#loudness_button').css("background", "url('../static/loudness_off.png') no-repeat");
+           $('#loudness_button').css("background-size", "100%");
+           $('#loudness_button').css("width", "10.7%");
+           $('#loudness_button').css("height", "10%");
+        }
+        else
+        {
+           useLoudness = true;
+           $('#loudness_button').css("background", "url('../static/loudness_on.png') no-repeat"); 
+           $('#loudness_button').css("background-size", "100%");
+           $('#loudness_button').css("width", "10.7%");
+           $('#loudness_button').css("height", "10%");
+        }
+
+        $.post('/usesliders', {
+                          loudness: useLoudness,
+                          noisiness: useNoisiness,
+                          sparseness: useSparseness,
+                          bass: useBass,
+                          high: useHigh
+                      }).done(function() {
+                          //console.log("Ok")
+                      }).fail(function() {
+                          //console.log("uff")
+                      });
+
+
+    });
+
+    $( "#noisiness_button" ).click(function() {
+        if (useNoisiness)
+        {
+           useNoisiness = false;
+           $('#noisiness_button').css("background", "url('../static/noise_off.png') no-repeat");
+           $('#noisiness_button').css("background-size", "100%");
+           $('#noisiness_button').css("width", "10.7%");
+           $('#noisiness_button').css("height", "10%");
+        }
+        else
+        {
+           useNoisiness = true;
+           $('#noisiness_button').css("background", "url('../static/noise_on.png') no-repeat"); 
+           $('#noisiness_button').css("background-size", "100%");
+           $('#noisiness_button').css("width", "10.7%");
+           $('#noisiness_button').css("height", "10%");
+        }
+
+        $.post('/usesliders', {
+                          loudness: useLoudness,
+                          noisiness: useNoisiness,
+                          sparseness: useSparseness,
+                          bass: useBass,
+                          high: useHigh
+                      }).done(function() {
+                          //console.log("Ok")
+                      }).fail(function() {
+                          //console.log("uff")
+                      });
+
+
+    });
+
+    $( "#sparseness_button" ).click(function() {
+        if (useSparseness)
+        {
+           useSparseness = false;
+           $('#sparseness_button').css("background", "url('../static/rhythm_off.png') no-repeat");
+           $('#sparseness_button').css("background-size", "100%");
+           $('#sparseness_button').css("width", "10.7%");
+           $('#sparseness_button').css("height", "10%");
+        }
+        else
+        {
+           useSparseness = true;
+           $('#sparseness_button').css("background", "url('../static/rhythm_on.png') no-repeat"); 
+           $('#sparseness_button').css("background-size", "100%");
+           $('#sparseness_button').css("width", "10.7%");
+           $('#sparseness_button').css("height", "10%");
+        }
+
+        $.post('/usesliders', {
+                          loudness: useLoudness,
+                          noisiness: useNoisiness,
+                          sparseness: useSparseness,
+                          bass: useBass,
+                          high: useHigh
+                      }).done(function() {
+                          //console.log("Ok")
+                      }).fail(function() {
+                          //console.log("uff")
+                      });
+
+
+    });
+
+    $( "#bass_button" ).click(function() {
+        if (useBass)
+        {
+           useBass = false;
+           $('#bass_button').css("background", "url('../static/bands_off.png') no-repeat");
+           $('#bass_button').css("background-size", "100%");
+           $('#bass_button').css("width", "10.7%");
+           $('#bass_button').css("height", "10%");
+        }
+        else
+        {
+           useBass = true;
+           $('#bass_button').css("background", "url('../static/bands_on.png') no-repeat"); 
+           $('#bass_button').css("background-size", "100%");
+           $('#bass_button').css("width", "10.7%");
+           $('#bass_button').css("height", "10%");
+        }
+
+        $.post('/usesliders', {
+                          loudness: useLoudness,
+                          noisiness: useNoisiness,
+                          sparseness: useSparseness,
+                          bass: useBass,
+                          high: useHigh
+                      }).done(function() {
+                          //console.log("Ok")
+                      }).fail(function() {
+                          //console.log("uff")
+                      });
+
+
+    });
+
+    $( "#high_button" ).click(function() {
+        if (useHigh)
+        {
+           useHigh = false;
+           $('#high_button').css("background", "url('../static/acoustic_off.png') no-repeat");
+           $('#high_button').css("background-size", "100%");
+           $('#high_button').css("width", "10.7%");
+           $('#high_button').css("height", "10%");
+        }
+        else
+        {
+           useHigh = true;
+           $('#high_button').css("background", "url('../static/acoustic_on.png') no-repeat"); 
+           $('#high_button').css("background-size", "100%");
+           $('#high_button').css("width", "10.7%");
+           $('#high_button').css("height", "10%");
+        }
+
+        $.post('/usesliders', {
+                          loudness: useLoudness,
+                          noisiness: useNoisiness,
+                          sparseness: useSparseness,
+                          bass: useBass,
+                          high: useHigh
+                      }).done(function() {
+                          //console.log("Ok")
+                      }).fail(function() {
+                          //console.log("uff")
+                      });
+
+
+    });
+
+    $( "#play_button" ).click(function() {
+
+        if (currentlyPlaying)
+        {
+          currentlyPlaying = false
+          $('#play_button').css("background", "url('../static/play.png') no-repeat"); 
+           $('#play_button').css("background-size", "contain");
+           $('#play_button').css("min-width", "5%");
+           $('#play_button').css("min-height", "11%");
+        }
+        else
+        {
+          currentlyPlaying = true
+          $('#play_button').css("background", "url('../static/pause.png') no-repeat"); 
+           $('#play_button').css("background-size", "contain");
+           $('#play_button').css("min-width", "5%");
+           $('#play_button').css("min-height", "11%");
+        }
+        $.post('/play', {
+                          playing: currentlyPlaying
+                      }).done(function() {
+                          //console.log("Ok")
+                      }).fail(function() {
+                          //console.log("uff")
+                      });
+
+
+    });
+
+    var lastClicked_onPresetsGrid;
+    var grid = clickableGrid(4,1,function(el,row,col,i){
+
+        if (i == "Abstract")
+        {
+          slider6_value = 10;
+          slider7_value = 1;
+          slider8_value = 5;
+          slider9_value = 1;
+          slider10_value = 1;
+          $("#slider6").slider('value', slider6_value);
+          $("#slider7").slider('value', slider7_value);
+          $("#slider8").slider('value', slider8_value);
+          $("#slider9").slider('value', slider9_value);
+          $("#slider10").slider('value', slider10_value);
+
+          useLoudness = true;
+          $('#loudness_button').css("background", "url('../static/loudness_on.png') no-repeat"); 
+          $('#loudness_button').css("background-size", "100%");
+          $('#loudness_button').css("width", "10.7%");
+          $('#loudness_button').css("height", "10%");
+          useNoisiness = false;
+          $('#noisiness_button').css("background", "url('../static/noise_off.png') no-repeat");
+          $('#noisiness_button').css("background-size", "100%");
+          $('#noisiness_button').css("width", "10.7%");
+          $('#noisiness_button').css("height", "10%");
+          useSparseness = true;
+          $('#sparseness_button').css("background", "url('../static/rhythm_on.png') no-repeat"); 
+          $('#sparseness_button').css("background-size", "100%");
+          $('#sparseness_button').css("width", "10.7%");
+          $('#sparseness_button').css("height", "10%");
+          useBass = false;
+          $('#bass_button').css("background", "url('../static/bands_off.png') no-repeat");
+          $('#bass_button').css("background-size", "100%");
+          $('#bass_button').css("width", "10.7%");
+          $('#bass_button').css("height", "10%");
+          useHigh = true;
+          $('#high_button').css("background", "url('../static/acoustic_on.png') no-repeat");
+          $('#high_button').css("background-size", "100%");
+          $('#high_button').css("width", "10.7%");
+          $('#high_button').css("height", "10%");
+        }
+
+        else if (i == "Highly Rhythmic")
+        {
+          slider6_value = 45;
+          slider7_value = 5;
+          slider8_value = 5;
+          slider9_value = 1;
+          slider10_value = 1;
+          $("#slider6").slider('value', slider6_value);
+          $("#slider7").slider('value', slider7_value);
+          $("#slider8").slider('value', slider8_value);
+          $("#slider9").slider('value', slider9_value);
+          $("#slider10").slider('value', slider10_value);
+
+
+          useLoudness = true;
+          $('#loudness_button').css("background", "url('../static/loudness_on.png') no-repeat"); 
+          $('#loudness_button').css("background-size", "100%");
+          $('#loudness_button').css("width", "10.7%");
+          $('#loudness_button').css("height", "10%");
+          useNoisiness = true;
+          $('#noisiness_button').css("background", "url('../static/noise_on.png') no-repeat");
+          $('#noisiness_button').css("background-size", "100%");
+          $('#noisiness_button').css("width", "10.7%");
+          $('#noisiness_button').css("height", "10%");
+          useSparseness = true;
+          $('#sparseness_button').css("background", "url('../static/rhythm_on.png') no-repeat"); 
+          $('#sparseness_button').css("background-size", "100%");
+          $('#sparseness_button').css("width", "10.7%");
+          $('#sparseness_button').css("height", "10%");
+          useBass = false;
+          $('#bass_button').css("background", "url('../static/bands_off.png') no-repeat");
+          $('#bass_button').css("background-size", "100%");
+          $('#bass_button').css("width", "10.7%");
+          $('#bass_button').css("height", "10%");
+          useHigh = false;
+          $('#high_button').css("background", "url('../static/acoustic_off.png') no-repeat");
+          $('#high_button').css("background-size", "100%");
+          $('#high_button').css("width", "10.7%");
+          $('#high_button').css("height", "10%");
+        }
+        else if (i == "Calm")
+        {
+          slider6_value = 10;
+          slider7_value = 1;
+          slider8_value = 1;
+          slider9_value = 1;
+          slider10_value = 4;
+          $("#slider6").slider('value', slider6_value);
+          $("#slider7").slider('value', slider7_value);
+          $("#slider8").slider('value', slider8_value);
+          $("#slider9").slider('value', slider9_value);
+          $("#slider10").slider('value', slider10_value);
+
+          useLoudness = true;
+          $('#loudness_button').css("background", "url('../static/loudness_on.png') no-repeat"); 
+          $('#loudness_button').css("background-size", "100%");
+          $('#loudness_button').css("width", "10.7%");
+          $('#loudness_button').css("height", "10%");
+          useNoisiness = true;
+          $('#noisiness_button').css("background", "url('../static/noise_on.png') no-repeat");
+          $('#noisiness_button').css("background-size", "100%");
+          $('#noisiness_button').css("width", "10.7%");
+          $('#noisiness_button').css("height", "10%");
+          useSparseness = true;
+          $('#sparseness_button').css("background", "url('../static/rhythm_on.png') no-repeat"); 
+          $('#sparseness_button').css("background-size", "100%");
+          $('#sparseness_button').css("width", "10.7%");
+          $('#sparseness_button').css("height", "10%");
+          useBass = false;
+          $('#bass_button').css("background", "url('../static/bands_off.png') no-repeat");
+          $('#bass_button').css("background-size", "100%");
+          $('#bass_button').css("width", "10.7%");
+          $('#bass_button').css("height", "10%");
+          useHigh = true;
+          $('#high_button').css("background", "url('../static/acoustic_on.png') no-repeat");
+          $('#high_button').css("background-size", "100%");
+          $('#high_button').css("width", "10.7%");
+          $('#high_button').css("height", "10%");
+        }
+        else if (i == "Noise")
+        {
+          slider6_value = 10;
+          slider7_value = 5;
+          slider8_value = 1;
+          slider9_value = 4;
+          slider10_value = 1;
+          $("#slider6").slider('value', slider6_value);
+          $("#slider7").slider('value', slider7_value);
+          $("#slider8").slider('value', slider8_value);
+          $("#slider9").slider('value', slider9_value);
+          $("#slider10").slider('value', slider10_value);
+
+          useLoudness = true;
+          $('#loudness_button').css("background", "url('../static/loudness_on.png') no-repeat"); 
+          $('#loudness_button').css("background-size", "100%");
+          $('#loudness_button').css("width", "10.7%");
+          $('#loudness_button').css("height", "10%");
+          useNoisiness = true;
+          $('#noisiness_button').css("background", "url('../static/noise_on.png') no-repeat");
+          $('#noisiness_button').css("background-size", "100%");
+          $('#noisiness_button').css("width", "10.7%");
+          $('#noisiness_button').css("height", "10%");
+          useSparseness = true;
+          $('#sparseness_button').css("background", "url('../static/rhythm_on.png') no-repeat"); 
+          $('#sparseness_button').css("background-size", "100%");
+          $('#sparseness_button').css("width", "10.7%");
+          $('#sparseness_button').css("height", "10%");
+          useBass = true;
+          $('#bass_button').css("background", "url('../static/bands_on.png') no-repeat");
+          $('#bass_button').css("background-size", "100%");
+          $('#bass_button').css("width", "10.7%");
+          $('#bass_button').css("height", "10%");
+          useHigh = false;
+          $('#high_button').css("background", "url('../static/acoustic_off.png') no-repeat");
+          $('#high_button').css("background-size", "100%");
+          $('#high_button').css("width", "10.7%");
+          $('#high_button').css("height", "10%");
+        }
+
+        $.post('/usesliders', {
+                          loudness: useLoudness,
+                          noisiness: useNoisiness,
+                          sparseness: useSparseness,
+                          bass: useBass,
+                          high: useHigh
+                      }).done(function() {
+                          //console.log("Ok")
+                      }).fail(function() {
+                          //console.log("uff")
+                      });
+
+        $.post('/updateslider', {
+                slider1: slider1_value,
+                slider2: slider2_value,
+                slider3: slider3_value,
+                slider4: slider4_value,
+                slider5: slider5_value,
+                slider6: slider6_value,
+                slider7: slider7_value,
+                slider8: slider8_value,
+                slider9: slider9_value,
+                slider10: slider10_value
+            }).done(function() {
+                //console.log("Ok")
+            }).fail(function() {
+                //console.log("uff")
+            });
+
+        el.className='clicked';
+        if (lastClicked_onPresetsGrid) lastClicked_onPresetsGrid.className='';
+        lastClicked_onPresetsGrid = el;
+    });
+
+    document.getElementById("gridcontainer").appendChild(grid);
+
+    function clickableGrid( rows, cols, callback ){
+        var i=0;
+        var grid = document.createElement('table');
+        grid.className = 'grid';
+        for (var r=0;r<rows;++r){
+            var tr = grid.appendChild(document.createElement('tr'));
+            for (var c=0;c<cols;++c){
+                var cell = tr.appendChild(document.createElement('td'));
+                var cont = "";
+                if (r == 0)
+                  cont = "Abstract";
+                else if (r == 1)
+                  cont = "Highly Rhythmic";
+                else if (r == 2)
+                  cont = "Calm";
+                else
+                  cont = "Noise";
+                cell.innerHTML = cont;
+                cell.addEventListener('click',(function(el,r,c,cont){
+                    return function(){
+                        callback(el,r,c,cont);
+                    }
+                })(cell,r,c,cont),false);
+            }
+        }
+        return grid;
+    }
+
+
+    $( "#starredsongs" ).click(function() {
+      if (showingMixer)
+      {
+        $( ".wholecontent" ).animate({ "marginLeft": "-85%", "content":"ciao" }, 400);
+        $("#starredsongs").html("Show Mixer &laquo;")
+        $( "#hints").animate({ "opacity": "0"}, 400);
+        $( "#hints").css({ "display": "none"});
+        $( "#show-adv-settings").animate({ "opacity": "0"}, 400);
+        $( "#show-adv-settings").css({ "display": "none"});
+        $( ".starthissong").animate({ "opacity": "1"}, 400);
+        $( ".starthissong").css({ "display": "block"});
+        $( "#language").css("margin-top", "59px");
+        showingMixer = false;
+      }
+      else
+      {
+        $( ".wholecontent" ).animate({ "marginLeft": "0%" },  400);
+        $("#starredsongs").html("Starred Tracks &raquo;")
+        $( "#hints").animate({ "opacity": "1"}, 400);
+        $( "#hints").css({ "display": "block"});
+        $( "#show-adv-settings").animate({ "opacity": "1"}, 400);
+        $( "#show-adv-settings").css({ "display": "block"});
+        $( ".starthissong").animate({ "opacity": "0"}, 400);
+        $( ".starthissong").css({ "display": "none"});
+        $( "#language").css("margin-top", "50px");
+        showingMixer = true;
+      }
+    });
+
+    $( "#star_button" ).click(function() {
+      addStarredSong(current_song, current_artist, current_song_year);
+    });
+
+    $( "#starthissong" ).click(function() {
+      addStarredSong(current_song, current_artist, current_song_year);
+    });
+
+    $( "#clearlist" ).click(function() {
+      while (starred_songs.length > 0) {
+        starred_songs.pop();
+      }
+      $(".songstableclass").html("");
+    }); 
+
+
+$(document).mouseup(function (e)
+{
+    var container = $("#advanced-settings");
+
+    if (!container.is(e.target) // if the target of the click isn't the container...
+        && container.has(e.target).length === 0) // ... nor a descendant of the container
+    {
+        hideAdvancedSettings();
+    }
+});
+
+
+function addPlayedSong(song, artist, year) {
+  var alreadyClicked = false;
+  alreadyDeletedStarredSong = false;
+  var tmp_array = [song, artist, year];
+  last_played_songs.push(tmp_array);
+  if (last_played_songs.length > 5)
+  {
+    last_played_songs.splice(0,1);
+  }
+  $(".lasttableclass").html("");
+  for (var i = last_played_songs.length - 1; i >= 0; i--)
+  {
+    if (!hasAlreadyBeenStarred(last_played_songs[i][0], last_played_songs[i][1], last_played_songs[i][2])) {
+      $('.lasttableclass').append('<tr><td class="title" style="width:40%;">' + last_played_songs[i][0] + '</td><td class="artist" style="width:40%;">' + last_played_songs[i][1] + '</td><td class="year" style="width:10%;">' +last_played_songs[i][2] + '</td><td><button type="button" class="star-track-button" onclick="addStarredSongHandler(this);" style="background: transparent; border: none; font-size: 1.4vw; margin-left: 27%; outline: none; cursor: pointer;">☆</button></td></tr>');
+    }
+    else {
+      $('.lasttableclass').append('<tr><td class="title" style="width:40%;">' + last_played_songs[i][0] + '</td><td class="artist" style="width:40%;">' + last_played_songs[i][1] + '</td><td class="year" style="width:10%;">' +last_played_songs[i][2] + '</td><td><button type="button" class="star-track-button" style="background: transparent; border: none; font-size: 1.4vw; margin-left: 27%; outline: none;">★</button></td></tr>');
+    }
+
+  }  
+}
+
+
+var source = new EventSource('/stream');
+  source.onmessage = function(event){
+    //var parts = event.data;
+    var string_ = event.data
+    var parts = string_.split("/|");
+    current_song = parts[0]
+    current_artist = parts[1]
+    current_song_year = parts[2]
+    //console.log(parts[0])
+    //console.log(typeof(event.data))
+    $("#title").html(current_song)
+    $("#artist").html(current_artist)
+    $("#year").html(current_song_year)
+    addPlayedSong(current_song, current_artist, current_song_year)
+  };
+
+
+var pause_source = new EventSource('/autopause');
+  pause_source.onmessage = function(event){
+    var string_ = event.data
+    if (string_ == "True") // if on automatic pause
+    {
+      currentlyPlaying = false
+      $('#play_button').css("background", "url('../static/play.png') no-repeat"); 
+       $('#play_button').css("background-size", "contain");
+       $('#play_button').css("min-width", "5%");
+       $('#play_button').css("min-height", "11%");
+    }
+    else
+    {
+      currentlyPlaying = true
+      $('#play_button').css("background", "url('../static/pause.png') no-repeat"); 
+       $('#play_button').css("background-size", "contain");
+       $('#play_button').css("min-width", "5%");
+       $('#play_button').css("min-height", "11%");
+    }
+
+  };
+
+
+
+});
+
+</script>
+</head>
+
+<body>
+<!-- <audio src="http://192.168.1.12:8000/audio.mp3">
+<p>If you are reading this, it is because your browser does not support the audio element.     </p>
+</audio> -->
+
+<!-- <audio controls>
+<source src="http://192.168.1.12:8000/audio.mp3">
+this works
+Your browser does not support the audio element.
+</audio> -->
+<div class="wholecontent">
+  <div class="page1">
+    <div class="page1content">
+      <div id="advanced-settings">
+        <div style="position:relative; margin-top:2%; left:95%; width:5%; cursor:pointer;" onclick="hideAdvancedSettings();">&#9747;</div>
+        <div id="settings-line" class="settings-line">
+          <div id="advsettings1" style="vertical-align:top; text-align:center;">Two consecutive segments must belong to different songs:</div>
+          <label class="switch" style="vertical-align:top; box-shadow:none">
+            <input type="checkbox" class="switch-input" onclick='handleCheckboxSetting1(this);' checked>
+            <span class="switch-label" data-on="On" data-off="Off"></span>
+            <span class="switch-handle"></span>
+          </label>
+        </div>
+        <div id="settings-line2" class="settings-line" style="margin-top:0%; opacity:0.2;">
+          <div id="advsettings2" style="vertical-align:top; text-align:center;">Two consecutive segments must be different:</div>
+          <label id="switchsetting2" class="switch" style="vertical-align:top; box-shadow:none">
+            <input id="checkboxsetting2" type="checkbox" class="switch-input" onclick='handleCheckboxSetting2(this);' checked>
+            <span class="switch-label" data-on="On" data-off="Off"></span>
+            <span class="switch-handle"></span>
+          </label>
+        </div>
+        <div class="settings-line" style="margin-top:0%;">
+          <div style="vertical-align:top; text-align:center;">Automatically suspend the playback:</div>
+          <label class="switch" style="vertical-align:top; box-shadow:none">
+            <input id="checkboxsetting2" type="checkbox" class="switch-input" onclick='handlePlaybackCheckbox(this);'>
+            <span class="switch-label" data-on="On" data-off="Off"></span>
+            <span class="switch-handle"></span>
+          </label>
+        </div>
+        <div id="playbackmins" class="settings-line" style="margin-top:0%; opacity:0.2;">
+          <div style="vertical-align:top; text-align:center;">Every:</div>
+          <form class="playback">
+              <select id="playback" disabled="true">
+                  <option>15 minutes</option>
+                  <option>30 minutes</option>
+                  <option>60 minutes</option>
+              </select>
+          </form>
+        </div>
+        <div class="settings-line" style="margin-top:0%; margin-bottom:3%;">
+          <div id="credits">Software developed by Giuseppe Bandiera,<br>supervised by Dr. Perfecto Herrera Boyer.<br>Music Technology Group, Universitat Pompeu Fabra<br>2014 Barcelona</div>
+        </div>
+      </div>
+      <div class="mixer">
+
+        <div class="monitor">
+        	<div id="title">N/A</div>
+        	<div id="artist">N/A</div>
+        	<div id="year">N/A</div>
+        </div>
+
+        <div class="playback_buttons">
+          <div id="play_button"></div>
+          <div id="star_button"></div>
+        </div>
+
+        <div class="leftpanel">
+          <div class="uppersliders">
+          	<div id="slider"></div>
+          	<div id="slider2"></div>
+          	<div id="slider3"></div>
+          	<div id="slider4"></div>
+          	<div id="slider5"></div>
+          </div>
+
+          <div class="lowersliders">
+            <div id="slider6group">
+              <span class="tooltip6"></span>
+              <div id="slider6"></div>
+              <div id="loudness_button"></div>
+            </div>
+            <div id="slider7group">
+              <span class="tooltip7"></span>
+          	  <div id="slider7"></div>
+              <div id="noisiness_button"></div>
+            </div>
+            <div id="slider8group">
+              <span class="tooltip8"></span>
+          	  <div id="slider8"></div>
+              <div id="sparseness_button"></div>
+          	</div>
+            <div id="slider9group">
+              <span class="tooltip9"></span>
+              <div id="slider9"></div>
+              <div id="bass_button"></div>
+          	</div>
+            <div id="slider10group">
+              <span class="tooltip10"></span>
+              <div id="slider10"></div>
+              <div id="high_button"></div>
+            </div>
+          </div> <!-- end .lowersliders -->
+
+        </div> <!-- end .leftpanel -->
+
+        <div id="rightpanel">
+          <div id="volume-knob">
+            <input type="text" value="100" class="dial">
+          </div>
+          <div id="slidersegmentlength"></div>
+          <div id="gridcontainer"></div>
+        </div>
+
+      </div> <!-- end .mixer -->
+
+      <div class="controlpanel">
+
+        <div id="starredsongs">Starred Tracks &raquo;</div>
+        <div id="hints"><div id="hints-label">TIPS:</div>
+          <label class="switch">
+            <input type="checkbox" class="switch-input" onclick='handleCheckbox(this);' checked>
+            <span class="switch-label" data-on="On" data-off="Off"></span>
+            <span class="switch-handle"></span>
+          </label>
+        </div> <!-- end of hints -->
+        <div id="show-adv-settings" onclick="showAdvancedSettings();">Advanced Settings</div>
+        <div id="starthissong" class="starthissong">&#9733; Add current song</div>
+        <div id="clearlist" class="starthissong" style="margin-top:20%;">Clear list</div>
+        <div id="emaillist" class="starthissong" style="margin-top:20%;">Send list to email</div>
+        <div id="language">LANGUAGE:
+        <!--    <div id="language-selected-wrapper" onmouseover="showLanguageMenu(false);" onclick="showLanguageMenu(true);" onmouseout="hideLanguageMenu();"> -->
+           <div id="language-selected-wrapper" onmouseover="showLanguageMenu(false);">
+             <div id="language-selected" onclick="showLanguageMenu(true);">
+               <img src="{{ url_for('static', filename='eng.png') }}" /><p>Eng</p>
+             </div>
+             <ul id="language-menu" onmouseout="hideLanguageMenu();">
+               <li onclick="changeLanguage(0)"><img src="{{ url_for('static', filename='eng.png') }}" /><p>Eng</p></li>
+               <li onclick="changeLanguage(1)"><img src="{{ url_for('static', filename='esp.png') }}" /><p>Esp</p></li>
+               <li onclick="changeLanguage(2)"><img src="{{ url_for('static', filename='cat.png') }}" /><p>Cat</p></li>
+             </ul>
+           </div> <!-- end of language-selected-wrapper -->
+         </div> <!-- end of #language -->
+<!--         <div class="credits">Coding and gui:
+          <div class="name">Giuseppe Bandiera</div>
+        </div> -->
+      </div> <!-- end .controlpanel -->
+    </div> <!-- end .page1content -->
+  </div> <!-- end .page1 -->
+
+  <div class="page2">
+    <div class="page2content"> 
+      <p>Starred tracks:</p>
+      <div class="starredsongstabcontainer">
+        <table class = "head">
+          <tr>
+            <td style="width: 40%;">Title</td>
+            <td style="width: 40%;">Artist</td>
+            <td style="width: 10%;">Year</td>
+            <td style="width: 10%;">Delete</td>
+          </tr>
+        </table>
+
+        <div class="starredsongstable">
+          <table class="songstableclass">
+          </table>
+        </div>
+      </div> <!-- end #starredsongstabcontainer -->
+
+      <p>Last tracks played:</p>
+
+      <div class="lastplayedcontainer">
+        <table class = "head">
+          <tr>
+            <td style="width: 40%;">Title</td>
+            <td style="width: 40%;">Artist</td>
+            <td style="width: 10%;">Year</td>
+            <td style="width: 10%;">Starred</td>
+          </tr>
+        </table>
+
+        <div class="lastplayedtable">
+          <table class="lasttableclass">
+          </table>
+        </div>
+      </div> <!-- end #lastplayedcontainer -->
+
+    </div> <!-- end .page2content -->
+  </div> <!-- end .page2 -->
+
+</div>
+</body>
+</html>

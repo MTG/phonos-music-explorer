@@ -21,13 +21,24 @@ def stream():
 def autopause(): 
     return Response(play.communicate_automatic_pause(), mimetype="text/event-stream")
 
+@app.route('/loading', methods=['GET'])
+def loading(): 
+    return Response(play.loading(), mimetype="text/event-stream")
 
 @app.route('/updateslider', methods=['POST'])
 def updateSliders():
 	play.update_sliders(request.form['slider1'], request.form['slider2'], request.form['slider3'], request.form['slider4'],\
 		request.form['slider5'], request.form['slider6'], request.form['slider7'], request.form['slider8'], request.form['slider9'], request.form['slider10'])
-
 	return request.form['slider1']
+
+@app.route('/back', methods=['POST'])
+def onExit():
+	func = request.environ.get('werkzeug.server.shutdown')
+	if func is None:
+	    raise RuntimeError('Not running with the Werkzeug Server')
+	func()
+	print "Shutting down the server"
+	return "Shutting down..."
 
 @app.route('/volume', methods=['POST'])
 def updateVolume():
@@ -57,6 +68,6 @@ def currentlyPlaying():
 
 	return request.form['playing']
 
-# @app.route('/stream')
-# def getSong():
-# 	return Response(play_with_echo.songChanged(), mimetype="text/event-stream")
+@app.route('/stream')
+def getSong():
+	return Response(play_with_echo.songChanged(), mimetype="text/event-stream")

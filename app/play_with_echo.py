@@ -5,6 +5,7 @@ from os import listdir
 import random
 from numpy import sqrt, asarray
 from numpy.linalg import norm
+import subprocess
 from util import SKL_distance, bpm_distance, hasJsonDescriptor, key_distance, build_matrix_from_vector
 import math
 import time
@@ -14,6 +15,37 @@ from operator import itemgetter
 import gi
 gi.require_version('Gst', '1.0')
 from gi.repository import Gst, GLib, GObject
+
+
+
+"""
+
+Schema of the gstreamer pipeline:
+
+
+CustomPipeline 
+ ______________________________________________________________________________________________________________________________________________________
+| 																																		               |
+|     CustomBin1																														               |
+|    _________________________________________________________________________________                                                                 |
+|   |   ________________     __________     ________________     _________________    |   _________                                                    |
+|   |  |                |   |          !   |                |   |                 |   |  |         |                                                   |
+|   |  |  URIDECODEBIN  |---|  VOLUME  |---|  AUDIOCONVERT  |---|  AUDIORESAMPLE  |---|--|         |                                                   |
+|   |  |________________|   |__________|   |________________|   |_________________|   |  |         |   ________    ______________    _________         |
+|   |_________________________________________________________________________________|  |         |  |        |  |              |  |         |        |
+|                                                                                        |  ADDER  |--| VOLUME |--|  MP3ENCODER  |--| TCPSINK |        |
+|    _________________________________________________________________________________   |         |  |________|  |______________|  |_________|        |
+|   |   ________________     __________     ________________     _________________    |  |         |                                                   |
+|   |  |                |   |          !   |                |   |                 |   |  |         |                                                   |
+|   |  |  URIDECODEBIN  |---|  VOLUME  |---|  AUDIOCONVERT  |---|  AUDIORESAMPLE  |---|--|         |                                                   |
+|   |  |________________|   |__________|   |________________|   |_________________|   |  |_________|                                                   |
+|   |_________________________________________________________________________________|                                                                |
+|                                                                                                                                                      |
+|______________________________________________________________________________________________________________________________________________________|
+
+A new custombin is added everytime a new segment is about to be played, while old custombins that are no longer player get removed from the playbin.
+
+"""
 
 
 # Configuration
@@ -35,9 +67,8 @@ filter_size = 0.1
 
 # Crossfade length (in seconds)
 CROSSFADE = 0.8
-
-# Determines when current player will stop playing current song
-deadline = 0
+# enable streaming through http
+streaming = False
 
 # Length (in seconds) of automatic pause. Playback will automatically last for this amount of time, before being stopped for the same amount of time. Set to 0 for no pause.
 automatic_pause_length = 0 * 60 
@@ -51,113 +82,248 @@ current_artist = None
 current_year = None
 playlist = {}
 songs_played = 0
-global_volume = 1
-
-# a traffic signal for managing the audio resources
-green_light = True
+currently_playing = False
+loading_finished = False
+useAlsaSink = False
+deadline = 0   # Determines when current player will stop playing current song
 
 # Gstreamer initialization
 GObject.threads_init()
 Gst.init(None)
 
+# Gst.debug_set_active(True)
+# os.environ["GST_DEBUG"] = "*:4"
+# os.environ["GST_DEBUG_DUMP_DOT_DIR"] = "/tmp"
+# os.environ["GST_DEBUG_FILE"] = "/tmp/gst.log"
 
+# starting_point = time.time()
 
-
-class Player:
+class CustomBin(Gst.Bin):
 	"""
-	A custom player based on gstreamer's playbin.
+	Custom Gst.Bin containing a uridecodebin and a volume element. 
 	"""
+	def __init__(self, audiofile):
+		Gst.Bin.__init__(self)
+		self.uridecodebin = Gst.ElementFactory.make("uridecodebin")
+		self.uridecodebin.set_property("uri", audiofile)
+		uridecodebin_caps = Gst.Caps.from_string("audio/x-raw, format=(string)S32LE, layout=(string)interleaved, rate=(int){ 8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000, 96000 }")
+		self.uridecodebin.set_property("caps", uridecodebin_caps)
+		self.volume = Gst.ElementFactory.make("volume")
+		self.volume.set_property("volume", 0)
+		self.audioconvert = Gst.ElementFactory.make("audioconvert")
+		self.audioresample = Gst.ElementFactory.make("audioresample")
+		self.audioresample.set_property("quality", 10)
+		self.add(self.audioconvert)
+		self.add(self.audioresample)
+		self.add(self.uridecodebin)
+		self.add(self.volume)
+		self.volume.link(self.audioconvert)
+		self.audioconvert.link(self.audioresample)
+		self.uridecodebin.connect("pad-added", self.pad_added_handler)
+		self.audioresample_pad = self.audioresample.get_static_pad('src')
+		self.ghostpad = Gst.GhostPad.new("src", self.audioresample_pad)
+		self.add_pad(self.ghostpad)
 
-	def __init__(self, name):
+	def pad_added_handler(self, src, new_pad):
+		# print("Receiving pad '%s' from '%s':" % (new_pad.get_name(), src.get_name()))
+		if new_pad.is_linked():
+			print "Pad already linked"
+			return
+		new_pad_type = new_pad.query_caps(None).to_string()
+		# print new_pad_type 
+		# this prints: audio/x-raw, format=(string)S32LE, layout=(string)interleaved, rate=(int)44100, channels=(int)2, channel-mask=(bitmask)0x0000000000000003
+		if not new_pad_type.startswith("audio/x-raw"):
+			print("It has type '%s' which is not raw audio. Ignoring")
+			return
+		ret = new_pad.link(self.volume.get_static_pad("sink"))
+		# print ret
+		return 
+
+	def change_volume(self, new_vol):
+		self.volume.set_property("volume", new_vol)
+
+	def seek_bin(self, inpoint, endpoint):
+		self.set_state(Gst.State.PAUSED)
+		self.get_state(Gst.CLOCK_TIME_NONE)
+		self.seek(1, Gst.Format.TIME, Gst.SeekFlags.KEY_UNIT, Gst.SeekType.SET, inpoint * Gst.SECOND, Gst.SeekType.NONE, 0)
+		self.set_state(Gst.State.PLAYING)
+
+
+class CustomPipeline(Gst.Pipeline):
+	def __init__(self):
 		"""
-		Creates a custom gstreamer playbin, sets initial values for its properties.
+		Pipeline with two custom bins and other elements necessary for the playback.
 		"""
-
-		self.name = name
-		self.playmode = False
-		self.playbin = Gst.ElementFactory.make("playbin")
-		self.bus = self.playbin.get_bus()
-		self.duration = 0
-		self.seek_start = 0
-		self.name_in_bold = ""
-		self.forcedPause = False
-		self.fade_in = False
-		self.fade_out = False
-		if self.name == "player1":
-			self.name_in_bold = '\033[01;34m' + 'player1' + '\033[0m'
-
+		Gst.Pipeline.__init__(self)
+		# bus = self.get_bus()
+		# bus.add_signal_watch()
+		# bus.connect("message", self.on_message)
+		self.adder = Gst.ElementFactory.make("adder")
+		self.volume = Gst.ElementFactory.make("volume")
+		self.volume.set_property("volume", 1)
+		self.add(self.adder)
+		self.add(self.volume)
+		self.adder.link(self.volume)
+		if (useAlsaSink):
+			self.alsasink = Gst.ElementFactory.make("alsasink")
+			self.add(self.alsasink)
+			self.volume.link(self.alsasink)
 		else:
-			self.name_in_bold = '\033[01;32m' + 'player2' + '\033[0m'
+			# self.mulawenc = Gst.ElementFactory.make("mulawenc")
+			# self.rtpbin = Gst.ElementFactory.make("rtppcmupay")
+			# self.add(self.mulawenc)
+			# self.add(self.rtpbin)
+			# self.volume.link(self.mulawenc)
+			# self.mulawenc.link(self.rtpbin)
+
+			# self.lame = Gst.ElementFactory.make("lamemp3enc")
+			# self.add(self.lame)
+			# self.rtpbin = Gst.ElementFactory.make("rtpmpapay")
+			# self.add(self.rtpbin)
+			# self.volume.link(self.lame)
+			# self.lame.link(self.rtpbin)
+
+			# self.udpsink = Gst.ElementFactory.make("udpsink")
+			# self.udpsink.set_property("host", "127.0.0.1")
+			# # self.udpsink.set_property("host", "10.80.24.66")
+			# self.udpsink.set_property("port", 5001)
+			# self.add(self.udpsink)
+			# self.rtpbin.link(self.udpsink)
+			# self.printPipeline()
+			self.lame = Gst.ElementFactory.make("lamemp3enc")
+			self.add(self.lame)
+			self.volume.link(self.lame)
+			self.tcpsink = Gst.ElementFactory.make("tcpserversink")
+			self.tcpsink.set_property("host", "localhost")
+			self.tcpsink.set_property("port", 8070)
+			self.add(self.tcpsink)
+			self.lame.link(self.tcpsink)
+			# self.printPipeline()
 
 
-	def run(self, initial_sleep):
-		"""
-		Starts the player after a sleep of proper length.
-		"""
+	def addBin(self, uri_audiofile):
+		tmp_bin = CustomBin(uri_audiofile)
+		self.add(tmp_bin)
+		src_tmp_bin = tmp_bin.get_static_pad("src")
+		sink_adder = self.adder.get_request_pad("sink_%u") 
+		src_tmp_bin.link(sink_adder)
+		return tmp_bin, src_tmp_bin, sink_adder
 
-		if initial_sleep != 0:
-			computed_sleep = self.timeToSleepOnRun(initial_sleep)
-		else:
-			computed_sleep = 0
 
-		# sleep and then play the assigned source file
-		time.sleep(computed_sleep)
+	# def on_message(self, bus, message):
+	# 	global currently_playing
+	# 	t = message.type
+	# 	if t == Gst.MessageType.EOS:
+	# 		self.set_state(Gst.State.NULL)
+	# 		currently_playing = False
+	# 	elif t == Gst.MessageType.ERROR:
+	# 		self.set_state(Gst.State.NULL)
+	# 		err, debug = message.parse_error()
+	# 		print "Custom error: %s" % err, debug
+	# 		currently_playing = False
+	# 	else:
+	# 		print t
 
-		self.play()
-	
 
-	def timeToSleepOnRun(self, input_time):
-		"""
-		The first time player2 is executed, it should sleep just until player1 starts fading out.
-		"""
-
-		return input_time - CROSSFADE
-		
-
-	def play(self):
-		"""
-		Forces the player to wait until its turns, grab next song and play it with fade in and fade out.
-		"""
-
+	def start(self):
+		bin2 = None
+		global currently_playing
+		currently_playing = True
+		self.set_state(Gst.State.PLAYING)
 		while True:
-
-			global green_light
-
-			if (green_light and not self.forcedPause):
-
-				green_light = False
-				self.pick_next_song()
-				self.set_playback()
-
-				# PLAY
+			if currently_playing:
+				uri_from_queue, title_from_queue, artist_from_queue, year_from_queue, inpoint, endpoint = self.pick_next_song()
+				self.updateGlobalValues(uri_from_queue, title_from_queue, artist_from_queue, year_from_queue)
+				bin1, bin1_src, sink1_adder = self.addBin(uri_from_queue)
+				playback_inpoint = max(inpoint - CROSSFADE, 0)
+				segment_duration = endpoint - playback_inpoint
 				global deadline
-				deadline = time.time() + self.duration
-				# fade in
-				self.fadeIn(CROSSFADE)
-				# actual playing
-				time.sleep(self.duration - CROSSFADE)
-				# fade out
-				green_light = True # just before starting to fade out, let the other player know that this playback is over
-				self.fadeOut(CROSSFADE)
-
-				# if meanwhile the playback has been stopped, wait for setting new state up until it resumes
-				if not self.forcedPause:
-					self.set_pause()
-					self.clean_queues()
-				else:
-					while True:
-						if self.forcedPause:
-							time.sleep(0.1)
-						else:
-							break
-					self.set_pause()
-					self.clean_queues()
-
+				deadline = time.time() + segment_duration
+				bin1.seek_bin(max(inpoint - CROSSFADE, 0), endpoint)
+				self.crossfade(bin1, bin2)
+				time_to_play = deadline - time.time() - CROSSFADE
+				# print time.time() - starting_point, " Playing", uri_from_queue
+				if (time_to_play > 0):
+					time.sleep(time_to_play)
+				if (bin2):
+					self.remove_bin(bin2, bin2_src, sink2_adder)
+				if not currently_playing:
+					continue
+				uri_from_queue, title_from_queue, artist_from_queue, year_from_queue, inpoint, endpoint = self.pick_next_song()
+				self.updateGlobalValues(uri_from_queue, title_from_queue, artist_from_queue, year_from_queue)
+				bin2, bin2_src, sink2_adder = self.addBin(uri_from_queue)
+				playback_inpoint = max(inpoint - CROSSFADE, 0)
+				segment_duration = endpoint - playback_inpoint
+				global deadline
+				deadline = time.time() + segment_duration
+				bin2.seek_bin(max(inpoint - CROSSFADE, 0), endpoint)
+				self.crossfade(bin2, bin1)
+				time_to_play = deadline - time.time() - CROSSFADE
+				# print time.time() - starting_point, " Playing", uri_from_queue
+				if (time_to_play > 0):
+					time.sleep(time_to_play) 
+				self.remove_bin(bin1, bin1_src, sink1_adder)
 			else:
-				# wait for your turn
-				time.sleep(.1)
-				continue
+				time.sleep(0.2)
 
+
+	def remove_bin(self, bin_, bin_src, adder_sink):
+		bin_src.add_probe(Gst.PadProbeType.BLOCK_DOWNSTREAM, self.event_probe, adder_sink)
+		# bin_src.add_probe(Gst.PadProbeType.IDLE, self.event_probe, adder_sink)
+		bin_src.unlink(adder_sink)
+		bin_.set_state(Gst.State.NULL)
+		self.adder.release_request_pad(adder_sink)
+		self.remove(bin_)
+
+
+	def event_probe(self, pad, info, ud):
+		# Nothing really to do here...
+		print "event probe"
+
+
+	def crossfade(self, fader_in, fader_out):
+		fader_in_volume = 0
+		fader_out_volume = 1
+		assert(fader_in or fader_out)
+		for i in range(10):
+			if (fader_in and fader_out):
+				time.sleep(CROSSFADE / 10.)
+				fader_in_volume += 0.1
+				fader_out_volume -= 0.1
+				fader_in.change_volume(fader_in_volume)
+				fader_out.change_volume(fader_out_volume)
+			elif (fader_in):
+				time.sleep(CROSSFADE / 10.)
+				fader_in_volume += 0.1
+				fader_in.change_volume(fader_in_volume)
+			else:
+				time.sleep(CROSSFADE / 10.)
+				fader_out_volume -= 0.1
+				fader_out.change_volume(fader_out_volume)
+
+
+	def change_volume(self, volume):
+		self.volume.set_property("volume", volume)
+
+	def pause(self):
+		self.set_state(Gst.State.PAUSED)
+		global currently_playing
+		currently_playing = False
+
+	def resume(self):
+		self.set_state(Gst.State.PLAYING)
+		global currently_playing
+		currently_playing = True
+
+	def printPipeline(self):
+	      dotfile = "/tmp/pipeline.dot"
+	      pngfile = "/tmp/pipeline.png"
+	      if os.access(dotfile, os.F_OK):
+	            os.remove(dotfile)
+	      if os.access(pngfile, os.F_OK):
+	            os.remove(pngfile)
+	      Gst.debug_bin_to_dot_file(self, Gst.DebugGraphDetails.ALL, "pipeline")
+	      os.system("dot -Tpng '%s' > '%s'" % (dotfile, pngfile))
 
 	def pick_next_song(self):
 		"""
@@ -170,126 +336,26 @@ class Player:
 				title_from_queue = playlist[songs_played][1]
 				artist_from_queue = playlist[songs_played][2]
 				year_from_queue = playlist[songs_played][3]
-				segment_interval = [playlist[songs_played][4], playlist[songs_played][5]]
+				inpoint = playlist[songs_played][4]
+				endpoint = playlist[songs_played][5]
 				break
 			except:
 				time.sleep(.1)
 				continue
-		self.playbin.set_property("uri", uri_from_queue)
-		self.uri = uri_from_queue
-		self.title = title_from_queue
-		self.artist = artist_from_queue
-		self.year = year_from_queue
-		self.seek_start = segment_interval[0]
-		self.playbin.set_state(Gst.State.PAUSED)
-		self.playbin.get_state(Gst.CLOCK_TIME_NONE)
-		self.playbin.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH | Gst.SeekFlags.KEY_UNIT, self.seek_start * Gst.SECOND)
-
-		self.duration = segment_interval[1] - segment_interval[0]
+		return uri_from_queue, title_from_queue, artist_from_queue, year_from_queue, inpoint, endpoint
 
 
-	def set_playback(self):
+	def updateGlobalValues(self, uri, title, artist, year):
 		"""
 		Sets everything ready for the playback.
 		"""
 
-		self.playbin.set_property("volume", 0.)
-		self.playbin.set_state(Gst.State.PLAYING)
-		self.playmode = True
-		print self.name_in_bold, "playing", self.uri
-		global currently_playing_song
-		currently_playing_song = self.uri
-		global current_artist
-		current_artist = self.artist
-		global current_track
-		current_track = self.title
-		global current_year
-		current_year = self.year
-		global songs_played
+		global currently_playing_song, current_artist, current_track, current_year, songs_played
+		currently_playing_song = uri
+		current_track = title
+		current_artist = artist
+		current_year = year
 		songs_played += 1
-
-
-	def set_pause(self):
-		"""
-		Handles the end of the playback.
-		"""
-
-		self.playbin.set_state(Gst.State.NULL)
-		self.playmode = False
-
-
-	def clean_queues(self):
-		"""
-		Delete useless items of playlist queue in order to avoid memory leaking.
-		"""
-
-		global songs_played
-		for i in playlist.keys():
-			if i < songs_played:
-				del playlist[i]
-
-
-	def pause(self):
-		"""
-		Immediately pauses the playback.
-		"""
-
-		self.forcedPause = True
-		if self.playmode:
-			self.playbin.set_state(Gst.State.PAUSED)
-
-
-	def resume(self):
-		"""
-		Resumes the playback.
-		"""
-
-		self.forcedPause = False
-
-
-	def fadeIn(self, duration):
-		"""
-		Performs a fade-in on current player.
-		"""
-		self.fade_in = True
-		global global_volume
-		actual_volume = 0
-		while (actual_volume < round(global_volume, 1)):
-			# print "Fade in:", actual_volume
-			# print "global_volume:", global_volume
-			time.sleep(duration/10.0)
-			if global_volume != 0:
-				actual_volume = round(actual_volume + global_volume/10., 2)
-			else:
-				actual_volume = 0
-			self.playbin.set_property("volume", actual_volume)
-		self.fade_in = False
-	
-
-	def fadeOut(self, duration):
-		"""
-		Performs a fade-out on current player.
-		"""
-		self.fade_out = True
-		global global_volume
-		actual_volume = global_volume
-		while (actual_volume > 0):
-			# print "Fade out:", actual_volume
-			# print "global_volume:", global_volume
-			time.sleep(duration/10.)
-			if global_volume != 0:
-				actual_volume = round(actual_volume - global_volume/10., 2)
-			else:
-				actual_volume = 0
-			self.playbin.set_property("volume", actual_volume)		
-		self.playbin.set_property("volume", 0)
-		self.fade_out = False
-
-
-	def setVolume(self, volume):
-		if not self.fade_in and not self.fade_out:
-			self.playbin.set_property("volume", volume)
-
 
 
 
@@ -299,9 +365,7 @@ class Play:
 	"""
 
 	def __init__(self):
-
-		self.player = Player("player1")
-		self.player2 = Player("player2")
+		self.custom_player = CustomPipeline()
 
 		self.slider1_value = 1
 		self.slider2_value = 1
@@ -336,9 +400,8 @@ class Play:
 		self.acousticness_safe_lower_thresh = 0
  
 		self.ignoreSimilarities = False  # When set to true, we won't compute Kullback-Leibler distance to get a similarity score
-		self.playing = False
 		self.forbidden_songs = {}
-		self.bars = 1
+		self.bars = 4
 		self.forceAccept = False
 		self.useLoudness = False
 		self.useNoisiness = False
@@ -408,8 +471,18 @@ class Play:
 		"""
 		Function called when the user interacts with the segment length slider.
 		"""
-
-		self.bars = int(length)
+		input_val = int(length)
+		if input_val == 1:
+			self.bars = 1
+		elif input_val == 2:
+			self.bars = 2
+		elif input_val == 3:
+			self.bars = 4
+		elif input_val == 4:
+			self.bars = 8
+		elif input_val == 5:
+			self.bars = 16
+		# self.bars = int(length)
 		self.slidersChanged = True
 
 
@@ -433,25 +506,29 @@ class Play:
 		"""
 		Handles user interaction with playback buttons. 
 		"""
+		global currently_playing
 		if playing == "false":
-			self.playing = False
-			self.player.pause()
-			self.player2.pause()
+			self.custom_player.pause()
 		else:
 			global last_start
 			last_start = time.time()
-			self.playing = True
-			self.player.resume()
-			self.player2.resume()
+			if songs_played == 0:
+				# print "Playback started at", time.time() - starting_point
+				self.startPlayer()
+				if streaming:
+					command = 'vlc tcp://127.0.0.1:8070 -d :sout=#http{dst=:8080/audio.mp3} :sout-keep vlc://quit'
+				else:
+					command = 'vlc tcp://127.0.0.1:8070 -d vlc://quit'
+				subprocess.call(command, shell=True)
+			else:
+				self.custom_player.resume()
 			if self.on_automatic_pause:
 				self.on_automatic_pause = False
 
 
 	def update_volume(self, volume):
-		global global_volume
-		global_volume = int(volume) / 100.
-		self.player.setVolume(global_volume)
-		self.player2.setVolume(global_volume)
+		new_vol = int(volume) / 100.
+		self.custom_player.change_volume(new_vol)
 
 
 	def event_stream(self):
@@ -463,6 +540,11 @@ class Play:
 		previous_playing_song = None
 		while True:
 			if currently_playing_song != previous_playing_song:
+				# dirty trick to make the user less conscious of the delay in audio streaming
+				if streaming:
+					time.sleep(5) 
+				else:
+					time.sleep(1.5)
 				if current_track == "":
 					current_track = "N/A"
 				if current_artist == "":
@@ -485,6 +567,20 @@ class Play:
 				yield 'data: %s\n\n' % self.on_automatic_pause
 				previous_state = self.on_automatic_pause
 			time.sleep(.2)
+
+
+	def loading(self):
+		"""
+		Communicates an automatic pause to the playback, so that the GUI can be updated (e.g. displaying the pause button instead of the playing one).
+		"""
+		global loading_finished
+		while True:
+			if loading_finished:
+				yield 'data: %s\n\n' % loading_finished
+				loading_finished = False # to prevent activating this script again
+				break
+			else:
+				time.sleep(0.2)
 
 
 	def main(self):
@@ -534,7 +630,17 @@ class Play:
 		song_title = selected_segment["title"]
 		song_artist = selected_segment["artist"]
 		song_year = selected_segment["year"]
-		first_segment_duration = selected_segment_length
+		for i in range(self.bars):
+			tmp_index = last_segment_picked_index + i
+			if last_song_picked == self.beats_map[tmp_index]["uri"]:
+				next_segment_index_end = tmp_index
+			else:
+				break
+
+		end_time = self.beats_map[next_segment_index_end]["end"]
+		# print "\033[01;36m", time.time() - starting_point, " Song added:", last_song_picked, "\033[0m"
+		print "\033[01;36mSong added:", self.counter, last_song_picked, "interval:", [start_time, end_time], "duration:", end_time - start_time, "\033[0m"
+
 
 		# put the selected song (or segment) into "forbidden_songs" queue, just to try to avoid to play it again very soon
 		if force_different_consecutive_songs:
@@ -544,16 +650,19 @@ class Play:
 
 		# put the selected song into the playback queue
 		playlist[self.counter] = ["file://" + last_song_picked, song_title, song_artist, song_year, start_time, end_time]
+		global loading_finished
+		loading_finished = True
 
 		# find all the other segments to be put in the playlist
 		while True:
+			self.clean_playlist_queue()
 			self.perform_automatic_pause_if_necessary()
 			self.checkForChanges()
 			if self.deadlineIncoming():
 				self.ignoreSimilarities = True
 
 			# let the cpu rest (avoid overheating) if we still have to play more than 6 elements of the playlist
-			if self.counter - songs_played >= 6:
+			if self.counter - songs_played >= 5:
 				time.sleep(1)
 				continue
 
@@ -564,11 +673,16 @@ class Play:
 			last_song_picked = next_segment["uri"]
 			for i in range(self.bars):
 				tmp_index = next_segment_index + i
-				if last_song_picked == self.beats_map[tmp_index]["uri"]:
-					next_segment_index_end = tmp_index
-				else:
+				try:
+					if last_song_picked == self.beats_map[tmp_index]["uri"]:  # here we could go out of the map, that's why we are in a 'try' block
+						next_segment_index_end = tmp_index
+					else:
+						break
+				except:
+					next_segment_index_end = next_segment_index
 					break
 
+			last_segment_picked_index = next_segment_index_end  # to compare next segments with the last bar of the current one
 
 			if force_different_consecutive_songs:
 				self.updateForbiddenSongsQueue(last_song_picked)
@@ -581,11 +695,11 @@ class Play:
 			year = next_segment["year"]
 			self.ignoreSimilarities = False
 			self.counter += 1
+			# print "\033[01;36m", time.time() - starting_point, " Song added:", last_song_picked, "\033[0m"
 			print "\033[01;36mSong added:", self.counter, last_song_picked, "interval:", [start_time, end_time], "duration:", end_time - start_time, "\033[0m"
-			if firstSong:
-				self.startPlayers(first_segment_duration)
-				self.playing = True
-				firstSong = False
+			# if firstSong:
+			# 	self.startPlayer()
+			# 	firstSong = False
 			playlist[self.counter] = ["file://" + last_song_picked, title, artist, year, start_time, end_time]
 
 
@@ -611,7 +725,7 @@ class Play:
 		if not filtered_suitable_segments:
 			filtered_suitable_segments = suitable_segments
 
-		print "Time to perform filtering:", time.time() - start_1
+		# print "Time to perform filtering:", time.time() - start_1
 		current_mfcc_mean, current_mfcc_covar, current_mfcc_invcovar = self.load_mfccs(current_segment, current_song_beats)
 		if len(filtered_suitable_segments) > 60:
 			number_of_neighbors = self.select_number_of_neighbors(filtered_suitable_segments)
@@ -771,10 +885,10 @@ class Play:
 		"""
 		Returns a list of segments that observe sliders' values and whose length is greater than 2 * crossfade value.
 		"""
-		print "Loudness threshs:", self.loudness_lower_thresh, self.loudness_upper_thresh
-		print "Noisiness threshs:", self.dissonance_lower_thresh, self.dissonance_upper_thresh
-		print "Onsets threshs:", self.onsetrate_lower_thresh, self.onsetrate_upper_thresh
-		print "Acousticness threshs:", self.acousticness_lower_thresh, self.acousticness_upper_thresh
+		# print "Loudness threshs:", self.loudness_lower_thresh, self.loudness_upper_thresh
+		# print "Noisiness threshs:", self.dissonance_lower_thresh, self.dissonance_upper_thresh
+		# print "Onsets threshs:", self.onsetrate_lower_thresh, self.onsetrate_upper_thresh
+		# print "Acousticness threshs:", self.acousticness_lower_thresh, self.acousticness_upper_thresh
 		suitable_segments = []
 		almost_suitable_segments = []
 		random_segments = []
@@ -814,13 +928,13 @@ class Play:
 					self.add_if_suitable(beat, self.slider5_value, beat_index, suitable_segments, almost_suitable_segments)
 					random_segments.append({"index": beat_index, "distance": self.distance_to_slider_conf(beat)})
 		if suitable_segments:
-			print "Case #1"
+			# print "Case #1"
 			return suitable_segments
 		elif almost_suitable_segments:
-			print "Case #2"
+			# print "Case #2"
 			return almost_suitable_segments
 		else:
-			print "Case #3"
+			# print "Case #3"
 			random_segments.sort(key=itemgetter('distance'))
 			segments_found = []
 			for segment in random_segments[:int(math.ceil(len(random_segments)/1000.))]:
@@ -1112,6 +1226,17 @@ class Play:
 		self.counter = songs_played - 1
 
 
+	def clean_playlist_queue(self):
+		"""
+		Delete useless items of playlist queue in order to avoid memory leaking.
+		"""
+
+		global songs_played
+		for i in playlist.keys():
+			if i < songs_played:
+				del playlist[i]
+
+
 	def updateForbiddenSongsQueue(self, candidate_song):
 		"""
 		Updates values in forbidden songs queue (that is the list of songs that cannot be selected because they have been used recently).
@@ -1131,22 +1256,22 @@ class Play:
 		"""
 		Automatically performs a stop of 'automatic_pause_length' seconds each 'automatic_pause_length' seconds.
 		"""
-		global last_start
-		if self.playing and automatic_pause_length != 0 and (time.time() - last_start > automatic_pause_length):
-			self.playing = False
+		global last_start, currently_playing
+		if currently_playing and automatic_pause_length != 0 and (time.time() - last_start > automatic_pause_length):
+			currently_playing = False
 			self.on_automatic_pause = True
 			self.player.pause()
 			self.player2.pause()
 			need_to_restart = True
 			for i in range(automatic_pause_length * 10):
 				time.sleep(0.1)
-				if self.playing: # check if the user have resumed the playback manually
+				if currently_playing: # check if the user have resumed the playback manually
 					need_to_restart = False
 					break
 			if need_to_restart:
 				global last_start
 				last_start = time.time()
-				self.playing = True
+				currently_playing = True
 				self.on_automatic_pause = False
 				self.player.resume()
 				self.player2.resume()
@@ -1156,17 +1281,14 @@ class Play:
 		"""
 		Initialize variables so that createPlaylist() can run properly.
 		"""
-		global songs_played, green_light
+		global songs_played
 		songs_played = 0
-		green_light = True
 		self.counter = 0
 
 
-	def startPlayers(self, player2_initialsleep):
+	def startPlayer(self):
 		"""
 		Starts the two audio players, that will be playing together in order to achieve a crossfade effect.
 		"""
-		thr = threading.Thread(target = self.player.run, args = (0,))
-		thr2 = threading.Thread(target = self.player2.run, args = (player2_initialsleep,))
+		thr = threading.Thread(target = self.custom_player.start, args = ())
 		thr.start()
-		thr2.start()

@@ -54,11 +54,12 @@
   var useLoudness = false;
   var useNoisiness = false;
   var useSparseness = false;
-  var useBass = false;
-  var useHigh = false;
+  var useDensity = false;
+  var useAcousticness = false;
 
-  var currentlyPlaying = true;
+  var currentlyPlaying = false;
   var showingMixer = true;
+  var firstSong = true;
 
   var current_song = "";
   var current_artist = "";
@@ -67,18 +68,15 @@
   var starred_songs = [];
   var last_played_songs = [];
   var show_tips = true;
-  var tooltips_eng = [ "Loudness is related to the perception of physical strength of audio. Higher values will lead to loudest segments.", 
-    "By noisiness we mean the amount of dissonance. Higher values will lead to most dissonant segments.",
-    "The amount of rhythmic events. Higher values will generally lead to segments where drums are more present.",
-    "The amount of frequency bands upper a certain thresholds. Higher values will lead to more spectrum-rich segments.",
-    "This slider sets the amount of acousticness of segments. Use lower values to get the most electronic and distorted segments."]
+  var showing_main_page = true;
 
-  var language_selected = 0  // 0=english, 1=spanish, 2=catalan
-  var language_menu_shown = false;
+  var language_selected = 0;  // 0=english, 1=spanish, 2=catalan
 
-  // highly rhytmic = [4, !0, 4, !0, 1]
-  // noise = [!0, 4, 1, 4, 1]
-  // calm = [!0, !0, 1, !0, 4]
+  // highly rhytmic = [4, !1, 4, !1, 1]
+  // noise = [!1, 4, 1, 4, 1]
+  // calm = [!1, !1, 1, !1, 4]
+  // aggressive = [4, 4, 4, 4, 1]
+  // abstract = [!1, !1, 1, 4, 1]
 
 
   function changeLanguage(lan) {
@@ -108,33 +106,215 @@
     language_menu_shown = false;
   }
 
-  function adaptChanges() {
-    // if (language_selected == 1)
-    //   $("#hints-label").html("Suggerimenti:");
 
-    
-    // Loudness is related to the perception of physical strength of audio. Higher values will lead to loudest segments.
-    // By noisiness we mean the amount of dissonance. Higher values will lead to most dissonant segments.
-    // The amount of rhythmic events. Higher values will generally lead to segments where drums are more present.
-    // The amount of frequency bands upper a certain thresholds. Higher values will lead to more spectrum-rich segments.
-    // This slider sets the amount of acousticness of segments. Use lower values to get the most electronic and distorted segments.
-    // TIPS: ,
-    //   Starred Tracks &raquo;  
-    // LANGUAGE: , 
-    //  &#9733; Add current song , 
-    // Clear list ,
-    // Starred tracks: , 
-    // Title , 
-    // Artist , 
-    // Year ,
-    // Last tracks played: ,
-    // Starred , 
-    // Delete
-    // Two consecutive segments must be different ,
-    // Two consecutive segments must belong to different songs ,
-    // Software developed by Giuseppe Bandiera, supervised by Dr. Perfecto Herrera Boyer.
-    //]
+  english_content = [
+    "Loudness is related to the perception of physical strength of audio. Higher values will lead to loudest segments. Press the button at the bottom of this fader if you don't want to use this concept for selecting music.",
+    "By noisiness we mean the amount of dissonance. Higher values will lead to mostly dissonant segments. Press the button at the bottom of this fader if you don't want to use this concept for selecting music.",
+    "Amount of rhythmic events. Higher values will generally lead to segments where drums are more present. Press the button at the bottom of this fader if you don't want to use this concept for selecting music.",
+    "Amount of frequency bands whose energy is higher than certain thresholds. Higher values will lead to more spectrum-rich segments. Press the button at the bottom of this fader if you don't want to use this concept for selecting music.",
+    "This slider sets the amount of acousticness of segments. Use lower values to get the most electronic and distorted segments. Press the button at the bottom of this fader if you don't want to use this concept for selecting music.",
+    "TIPS:",
+    "Starred Tracks &raquo;",
+    "LANGUAGE:", 
+    "&#9733; Add current song",
+    "Clear list",
+    "Starred tracks:",
+    "Title",
+    "Composer",
+    "Year",
+    "Last tracks played:",
+    "Starred",
+    "Delete", 
+    "Advanced settings", 
+    "Two consecutive segments must be different",
+    "Two consecutive segments must belong to different songs",
+    "Automatically suspend the playback:", 
+    "Every:", 
+    "Play and exploration software developed by Giuseppe Bandiera,<br>supervised by Perfecto Herrera Boyer.<br>Music Technology Group, Universitat Pompeu Fabra<br>2014 Barcelona",
+    "Show<br>Mixer &laquo;", 
+    "Return to index", 
+    "Sets the length of the music excerpts to be played.",
+    "Loud",
+    "Noise",
+    "Rhythm",
+    "Density",
+    "Acoustic",
+    "Volume",
+    "Segment Length",
+    "Abstract",
+    "Aggressive",
+    "Calm",
+    "Highly Rhythmic",
+    "Noise",
+    "Artist",
+    "Presets"
+  ]
+
+  spanish_content = [
+    "Intensidad. Valores altos dan lugar a música con un volumen general más fuerte. Pulsa el botón que hay debajo de este deslizador si quieres desactivar este concepto para seleccionar música.",
+    "Ruido. Valores altos seleccionan segmentos disonantes y poco armónicos. Pulsa el botón que hay debajo de este deslizador si quieres desactivar este concepto para seleccionar música.",
+    "Ritmo. Valores altos seleccionan segmentos con ritmo claramente definido. Valores bajos dan lugar a segmentos poco pulsantes. Pulsa el botón que hay debajo de este deslizador si quieres desactivar este concepto para seleccionar música.",
+    "Densidad. Valores altos seleccionan segmentos con más riqueza o variedad tímbrica. Pulsa el botón que hay debajo de este deslizador si quieres desactivar este concepto para seleccionar música.",
+    "Presencia de instrumentos acústicos. Valores bajos seleccionaran segmentos predominantemente electrónicos o distorsionados. Pulsa el botón que hay debajo de este deslizador si quieres desactivar este concepto para seleccionar música.",
+    "CONSEJOS:",
+    "Pistas favoritas &raquo;",
+    "IDIOMA:", 
+    "&#9733; Añadir la pieza actual",
+    "Limpiar la lista",
+    "Pistas favoritas:",
+    "Título",
+    "Compositor",
+    "Año",
+    "Últimas pistas reproducidas:",
+    "Favoritas",
+    "Borrar", 
+    "Ajustes avanzados ",  
+    "2 segmentos consecutivos tienen que ser diferentes",
+    "2 segmentos consecutivos tienen que pertenecer a piezas diferentes",
+    "Suspender automáticamente la reproducción:", 
+    "Cada:", 
+    "Software de escucha y exploración desarrollado por Giuseppe Bandiera, bajo la supervisión de Perfecto Herrera Boyer.<br>Music Technology Group, Universitat Pompeu Fabra<br>2014 Barcelona", 
+    "Mostrar mezclador &laquo;", 
+    "Volver al índice",
+    "Regula la longitud de los fragmentos musicales a reproducir.",
+    "Fuerte",
+    "Ruido",
+    "Ritmo",
+    "Densidad",
+    "Acústico",
+    "Volumen",
+    "Longitud segmento",
+    "Abstracto",
+    "Agresivo",
+    "Tranquilo",
+    "Altamente Rítmico",
+    "Ruido",
+    "Artista",
+    "Presets"
+  ]
+
+  catalunian_content = [
+    "Intensitat. Valors alts donen lloc a música amb un volum general més fort. Prem el botó que apareix sota aquest lliscador si vols desactivar aquest concepte a l'hora de seleccionar música.",
+    "Soroll. Valors alts seleccionen segments dissonants i poc harmònics. Prem el botó que apareix sota aquest lliscador si vols desactivar aquest concepte a l'hora de seleccionar música.",
+    "Ritme. Valors alts seleccionen segmentes amb ritme clarament definit. Valors baixos donen lloc a segments poc polsants. Prem el botó que apareix sota aquest lliscador si vols desactivar aquest concepte a l'hora de seleccionar música.",
+    "Densitat. Valors alts seleccionen segments amb més riquesa o varietat tímbrica. Prem el botó que apareix sota aquest lliscador si vols desactivar aquest concepte a l'hora de seleccionar música.",
+    "Presència d'instruments acústics. Valors baixos seleccionen segments predominantment electrònics o distorsionats. Prem el botó que apareix sota aquest lliscador si vols desactivar aquest concepte a l'hora de seleccionar música.",
+    "CONSELLS:",
+    "Pistes favorites &raquo;",
+    "IDIOMA:", 
+    "&#9733; Afegir la peça actual",
+    "Netejar la llista",
+    "Pistes favorites:",
+    "Títol",
+    "Compositor",
+    "Any",
+    "Darrera pista reproduïda:",
+    "Favorites",
+    "Esborrar", 
+    "Ajustaments avançats", 
+    "2 segments consecutius han de ser diferents",
+    "2 segments consecutius han de pertànyer a peces diferents",
+    "Suspendre automàticament la reproducció:", 
+    "Cada:", 
+    "Aplicació d'escolta i exploració desenvolupada per Giuseppe Bandiera, sota la supervisió de Perfecto Herrera Boyer.<br>Music Technology Group, Universitat Pompeu Fabra<br>2014 Barcelona",
+    "Mostrar mesclador &laquo;", 
+    "Tornar a l'índex",
+    "Regula la longitud dels fragments musicals a reproduïr.",
+    "Fort",
+    "Soroll",
+    "Ritme",
+    "Densitat",
+    "Acústic",
+    "Volum",
+    "Longitud segment",
+    "Abstracte",
+    "Agressiu",
+    "Tranquil",
+    "Altament Rítmic",
+    "Soroll",
+    "Artista",
+    "Presets"
+  ]
+
+  content = [english_content, spanish_content, catalunian_content]
+
+  function clickableGrid( rows, cols, callback ){
+      var i=0;
+      var grid = document.createElement('table');
+      grid.className = 'grid';
+      // grid.style.width = "82.7%";
+      for (var r=0;r<rows;++r){
+          var tr = grid.appendChild(document.createElement('tr'));
+          for (var c=0;c<cols;++c){
+              var cell = tr.appendChild(document.createElement('td'));
+              var cont = "";
+              if (r == 0)
+                cont = content[language_selected][33];
+              else if (r == 1)
+                cont = content[language_selected][34];
+              else if (r == 2)
+                cont = content[language_selected][35];
+              else if (r == 3)
+                cont = content[language_selected][36];
+              else
+                cont = content[language_selected][37];
+              cell.innerHTML = cont;
+              cell.addEventListener('click',(function(el,r,c,cont){
+                  return function(){
+                      callback(el,r,c,cont);
+                  }
+              })(cell,r,c,cont),false);
+          }
+      }
+      return grid;
   }
+
+  function adaptChanges() {
+    $('#tooltip6').html(content[language_selected][0]);
+    $('#tooltip7').html(content[language_selected][1]);
+    $('#tooltip8').html(content[language_selected][2]);
+    $('#tooltip9').html(content[language_selected][3]);
+    $('#tooltip10').html(content[language_selected][4]);
+    $('#advsettings1').html(content[language_selected][19]);
+    $('#advsettings2').html(content[language_selected][18]);
+    $('#suspendsetting').html(content[language_selected][20]);
+    $('#every-label').html(content[language_selected][21]);
+    $('#credits').html(content[language_selected][22]);
+    if (showingMixer)
+      $("#starredsongs").html(content[language_selected][6]);
+    else
+      $('#starredsongs').html(content[language_selected][23]);
+    $('#hints-label').html(content[language_selected][5]);
+    $('#show-adv-settings').html(content[language_selected][17]);
+    $('#starthissong').html(content[language_selected][8]);
+    $('#clearlist').html(content[language_selected][9]);
+    $('#language-label').html(content[language_selected][7]);
+    $('p#starred-title').html(content[language_selected][10]);
+    $('td.title-column').html(content[language_selected][11]);
+    $('td.artist-column').html(content[language_selected][12]);
+    $('td.year-column').html(content[language_selected][13]);
+    $('td.delete-column').html(content[language_selected][16]);
+    $('td.starred-column').html(content[language_selected][15]);
+    $('p#last-tracks-label').html(content[language_selected][14]);
+    $("#backtomenu").html(content[language_selected][24]);
+    $('.tooltipsegmentlen').html(content[language_selected][25]);
+    $('#loudness_label').html(content[language_selected][26]);
+    $('#noisiness_label').html(content[language_selected][27]);
+    $('#rhythm_label').html(content[language_selected][28]);
+    $('#density_label').html(content[language_selected][29]);
+    $('#acoustic_label').html(content[language_selected][30]);
+    $('#titlelabel').html(content[language_selected][11] + ":");
+    $('#artistlabel').html(content[language_selected][38] + ":");
+    $('#yearlabel').html(content[language_selected][13] + ":");
+    $('#volumelabel').html(content[language_selected][31]);
+    $('#segmentlengthlabel').html(content[language_selected][32]);
+    $('#presetslabel').html(content[language_selected][39]);
+
+   	grid = createPresetsGrid();
+   	$('#gridcontainer').html("");
+    document.getElementById("gridcontainer").appendChild(grid);
+  }
+
 
   function showLanguageMenu(clicked) {
     if (clicked)
@@ -188,9 +368,10 @@ function deleteTrack(title, artist, year) {
   $(".songstableclass").html("");
   for (var i = 0; i <=  starred_songs.length - 1; i++)
   {
-    $('.songstableclass').append('<tr><td class="title" style="width:40%;">' + starred_songs[i][0] + '</td><td class="artist" style="width:40%;">' + starred_songs[i][1] + '</td><td class="year" style="width:10%;">' +starred_songs[i][2] + '</td><td><button type="button" class="delete-track-button" onclick="deleteTrackHandler(this);" style="background: transparent; border: none; font-size: 1.4vw; margin-left: 19%; outline: none; cursor: pointer;">☒</button></td></tr>');
+    $('.songstableclass').append('<tr><td class="title" style="width:40%;">' + starred_songs[i][0] + '</td><td class="artist" style="width:40%;">' + starred_songs[i][1] + '</td><td class="year" style="width:10%;">' +starred_songs[i][2] + '</td><td><button type="button" class="delete-track-button" onclick="deleteTrackHandler(this);" style="background: transparent; border: none; font-size: 1.4vw; margin-left: 19%; outline: none; cursor: pointer;">â˜’</button></td></tr>');
   }
 }
+
 
   function deleteTrackHandler(button) {
       var $row = $(button).closest("tr");    // Find the row
@@ -394,18 +575,98 @@ function deleteTrack(title, artist, year) {
     }
   }
 
+  function enableLoudness() {
+    useLoudness = true;
+    $('#loudness_button').css("background", "url('../static/button_on.png') no-repeat"); 
+    $('#loudness_button').css("background-size", "100%");
+    $('#loudness_button').css("width", "10.7%");
+    $('#loudness_button').css("height", "10%");
+  }
+
+  function disableLoudness() {
+    useLoudness = false;
+    $('#loudness_button').css("background", "url('../static/button_off.png') no-repeat"); 
+    $('#loudness_button').css("background-size", "100%");
+    $('#loudness_button').css("width", "10.7%");
+    $('#loudness_button').css("height", "10%");
+  }
+
+  function enableNoisiness() {
+    useNoisiness = true;
+    $('#noisiness_button').css("background", "url('../static/button_on.png') no-repeat");
+    $('#noisiness_button').css("background-size", "100%");
+    $('#noisiness_button').css("width", "10.7%");
+    $('#noisiness_button').css("height", "10%");
+  }
+
+  function disableNoisiness() {
+    useNoisiness = false;
+    $('#noisiness_button').css("background", "url('../static/button_off.png') no-repeat");
+    $('#noisiness_button').css("background-size", "100%");
+    $('#noisiness_button').css("width", "10.7%");
+    $('#noisiness_button').css("height", "10%");
+  }
+
+  function enableRhythm() {
+    useSparseness = true;
+    $('#rhythm_button').css("background", "url('../static/button_on.png') no-repeat"); 
+    $('#rhythm_button').css("background-size", "100%");
+    $('#rhythm_button').css("width", "10.7%");
+    $('#rhythm_button').css("height", "10%");
+  }
+
+  function disableRhythm() {
+    useSparseness = false;
+    $('#rhythm_button').css("background", "url('../static/button_off.png') no-repeat"); 
+    $('#rhythm_button').css("background-size", "100%");
+    $('#rhythm_button').css("width", "10.7%");
+    $('#rhythm_button').css("height", "10%");
+  }
+
+  function enableDensity() {
+    useDensity = true;
+    $('#density_button').css("background", "url('../static/button_on.png') no-repeat");
+    $('#density_button').css("background-size", "100%");
+    $('#density_button').css("width", "10.7%");
+    $('#density_button').css("height", "10%");
+  }
+
+  function disableDensity() {
+    useDensity = false;
+    $('#density_button').css("background", "url('../static/button_off.png') no-repeat");
+    $('#density_button').css("background-size", "100%");
+    $('#density_button').css("width", "10.7%");
+    $('#density_button').css("height", "10%");
+  }
+
+  function enableAcousticness() {
+    useAcousticness = true;
+    $('#acoustic_button').css("background", "url('../static/button_on.png') no-repeat");
+    $('#acoustic_button').css("background-size", "100%");
+    $('#acoustic_button').css("width", "10.7%");
+    $('#acoustic_button').css("height", "10%");
+  }
+
+  function disableAcousticness() {
+    useAcousticness = false;
+    $('#acoustic_button').css("background", "url('../static/button_off.png') no-repeat");
+    $('#acoustic_button').css("background-size", "100%");
+    $('#acoustic_button').css("width", "10.7%");
+    $('#acoustic_button').css("height", "10%");
+  }
+
   $(function() {
-    $( "#slider" ).slider({ 
-	orientation: "vertical", 
-	step: 1, 
+    $( "#slider1" ).slider({ 
+  orientation: "vertical", 
+  step: 1, 
   animate: true,
-	/*range: "min",
-	value: 50,*/
-	min: 0,
-	max: 3,
-	slide: function( event, ui ) {
-				  val = ui.value;
-				  slider1_value = val;
+  /*range: "min",
+  value: 50,*/
+  min: 0,
+  max: 3,
+  slide: function( event, ui ) {
+          val = ui.value;
+          slider1_value = val;
           if (setSliders)
           {
             $.post('/updateslider', {
@@ -454,21 +715,21 @@ function deleteTrack(title, artist, year) {
                   
 
       }
-	});
+  });
   });
 
   $(function() {
     $( "#slider2" ).slider({ 
-	orientation: "vertical", 
+  orientation: "vertical", 
   animate: true,
-	step: 1, 
-	/*range: "min",
-	value: 50,*/
-	min: 0,
-	max: 3,
-	slide: function( event, ui ) {
-				  val = ui.value;
-				  slider2_value = val;
+  step: 1, 
+  /*range: "min",
+  value: 50,*/
+  min: 0,
+  max: 3,
+  slide: function( event, ui ) {
+          val = ui.value;
+          slider2_value = val;
           if (setSliders)
           {
             $.post('/updateslider', {
@@ -514,21 +775,21 @@ function deleteTrack(title, artist, year) {
                       });
           }
         }
-	});
+  });
   });
 
   $(function() {
     $( "#slider3" ).slider({ 
-	orientation: "vertical", 
+  orientation: "vertical", 
   animate: true,
-	step: 1, 
-	/*range: "min",
-	value: 50,*/
-	min: 0,
-	max: 3,
-	slide: function( event, ui ) {
-				  val = ui.value;
-				  slider3_value = val;
+  step: 1, 
+  /*range: "min",
+  value: 50,*/
+  min: 0,
+  max: 3,
+  slide: function( event, ui ) {
+          val = ui.value;
+          slider3_value = val;
           if (setSliders)
           {
             $.post('/updateslider', {
@@ -575,21 +836,21 @@ function deleteTrack(title, artist, year) {
           }
 
       }
-	});
+  });
   });
 
   $(function() {
     $( "#slider4" ).slider({ 
-	orientation: "vertical", 
+  orientation: "vertical", 
   animate: true,
-	step: 1, 
-	/*range: "min",
-	value: 50,*/
-	min: 0,
-	max: 3,
-	slide: function( event, ui ) {
-				  val = ui.value;
-				  slider4_value = val;
+  step: 1, 
+  /*range: "min",
+  value: 50,*/
+  min: 0,
+  max: 3,
+  slide: function( event, ui ) {
+          val = ui.value;
+          slider4_value = val;
           if (setSliders)
           {
             $.post('/updateslider', {
@@ -636,21 +897,21 @@ function deleteTrack(title, artist, year) {
           }
 
         }
-	});
+  });
   });
 
   $(function() {
     $( "#slider5" ).slider({ 
-	orientation: "vertical", 
+  orientation: "vertical", 
   animate: true,
-	step: 1, 
-	/*range: "min",
-	value: 50,*/
-	min: 0,
-	max: 3,
-	slide: function( event, ui ) {
-				  val = ui.value;
-				  slider5_value = val;
+  step: 1, 
+  /*range: "min",
+  value: 50,*/
+  min: 0,
+  max: 3,
+  slide: function( event, ui ) {
+          val = ui.value;
+          slider5_value = val;
           if (setSliders)
           {
             $.post('/updateslider', {
@@ -697,20 +958,22 @@ function deleteTrack(title, artist, year) {
           }
 
           }
-	});
+  });
   });
 
+  var lastClicked_onPresetsGrid;
+
   $(function() {
-    var tooltip = $('.tooltip6');
+    var tooltip = $('#tooltip6');
     tooltip.hide(); 
     $( "#slider6" ).slider({ 
-	orientation: "vertical", 
+  orientation: "vertical", 
   animate: true,
-	step: 1, 
-	/*range: "min",
-	value: 50,*/
-	min: 1,
-	max: 4,
+  step: 1, 
+  /*range: "min",
+  value: 50,*/
+  min: 1,
+  max: 4,
   start: function(event,ui) {
       if (show_tips)
         tooltip.fadeIn('fast');
@@ -718,10 +981,14 @@ function deleteTrack(title, artist, year) {
   stop: function(event,ui) {
       tooltip.fadeOut('fast');
     },
-	slide: function( event, ui ) {
-				  val = ui.value;
-				  slider6_value = val;
-          tooltip.text(tooltips_eng[0]);
+  slide: function( event, ui ) {
+          val = ui.value;
+          slider6_value = val;
+          if (lastClicked_onPresetsGrid) 
+          {
+          	lastClicked_onPresetsGrid.className='';
+          	lastClicked_onPresetsGrid = null;
+          }
           //console.log(ui.value);
           $.post('/updateslider', {
                   slider1: slider1_value,
@@ -742,18 +1009,14 @@ function deleteTrack(title, artist, year) {
 
           if (!useLoudness)
           {
-            useLoudness = true;
-            $('#loudness_button').css("background", "url('../static/loudness_on.png') no-repeat"); 
-            $('#loudness_button').css("background-size", "100%");
-            $('#loudness_button').css("width", "10.7%");
-            $('#loudness_button').css("height", "10%");
+            enableLoudness();
 
             $.post('/usesliders', {
                               loudness: useLoudness,
                               noisiness: useNoisiness,
                               sparseness: useSparseness,
-                              bass: useBass,
-                              high: useHigh
+                              bass: useDensity,
+                              high: useAcousticness
                           }).done(function() {
                               //console.log("Ok")
                           }).fail(function() {
@@ -763,20 +1026,20 @@ function deleteTrack(title, artist, year) {
           }
 
        }
-	});
+  });
   });
 
   $(function() {
-    var tooltip = $('.tooltip7');
+    var tooltip = $('#tooltip7');
     tooltip.hide();
     $( "#slider7" ).slider({ 
-	orientation: "vertical", 
+  orientation: "vertical", 
   animate: true,
-	step: 1, 
-	/*range: "min",
-	value: 50,*/
-	min: 1,
-	max: 4,
+  step: 1, 
+  /*range: "min",
+  value: 50,*/
+  min: 1,
+  max: 4,
   start: function(event,ui) {
       if (show_tips)
         tooltip.fadeIn('fast');
@@ -784,10 +1047,14 @@ function deleteTrack(title, artist, year) {
   stop: function(event,ui) {
       tooltip.fadeOut('fast');
     },
-	slide: function( event, ui ) {
-				  val = ui.value;
-				  slider7_value = val;
-          tooltip.text(tooltips_eng[1]);
+  slide: function( event, ui ) {
+          val = ui.value;
+          slider7_value = val;
+          if (lastClicked_onPresetsGrid) 
+          {
+          	lastClicked_onPresetsGrid.className='';
+          	lastClicked_onPresetsGrid = null;
+          }
           //console.log(ui.value);
           $.post('/updateslider', {
                   slider1: slider1_value,
@@ -808,18 +1075,14 @@ function deleteTrack(title, artist, year) {
 
           if (!useNoisiness)
           {
-            useNoisiness = true;
-            $('#noisiness_button').css("background", "url('../static/noise_on.png') no-repeat"); 
-            $('#noisiness_button').css("background-size", "100%");
-            $('#noisiness_button').css("width", "10.7%");
-            $('#noisiness_button').css("height", "10%");
+            enableNoisiness();
 
             $.post('/usesliders', {
                               loudness: useLoudness,
                               noisiness: useNoisiness,
                               sparseness: useSparseness,
-                              bass: useBass,
-                              high: useHigh
+                              bass: useDensity,
+                              high: useAcousticness
                           }).done(function() {
                               //console.log("Ok")
                           }).fail(function() {
@@ -829,20 +1092,20 @@ function deleteTrack(title, artist, year) {
           }
 
        }
-	});
+  });
   });
 
   $(function() {
-    var tooltip = $('.tooltip8');
+    var tooltip = $('#tooltip8');
     tooltip.hide();
     $( "#slider8" ).slider({ 
-	orientation: "vertical", 
+  orientation: "vertical", 
   animate: true,
-	step: 1, 
-	/*range: "min",
-	value: 50,*/
-	min: 1,
-	max: 4,
+  step: 1, 
+  /*range: "min",
+  value: 50,*/
+  min: 1,
+  max: 4,
   start: function(event,ui) {
       if (show_tips)
         tooltip.fadeIn('fast');
@@ -850,10 +1113,14 @@ function deleteTrack(title, artist, year) {
   stop: function(event,ui) {
       tooltip.fadeOut('fast');
     },
-	slide: function( event, ui ) {
-				  val = ui.value;
-				  slider8_value = val;
-          tooltip.text(tooltips_eng[2]);
+  slide: function( event, ui ) {
+          val = ui.value;
+          slider8_value = val;
+          if (lastClicked_onPresetsGrid) 
+          {
+          	lastClicked_onPresetsGrid.className='';
+          	lastClicked_onPresetsGrid = null;
+          }
           $.post('/updateslider', {
                   slider1: slider1_value,
                   slider2: slider2_value,
@@ -873,18 +1140,14 @@ function deleteTrack(title, artist, year) {
 
           if (!useSparseness)
           {
-            useSparseness = true;
-            $('#sparseness_button').css("background", "url('../static/rhythm_on.png') no-repeat"); 
-            $('#sparseness_button').css("background-size", "100%");
-            $('#sparseness_button').css("width", "10.7%");
-            $('#sparseness_button').css("height", "10%");
+            enableRhythm();
 
             $.post('/usesliders', {
                               loudness: useLoudness,
                               noisiness: useNoisiness,
                               sparseness: useSparseness,
-                              bass: useBass,
-                              high: useHigh
+                              bass: useDensity,
+                              high: useAcousticness
                           }).done(function() {
                               //console.log("Ok")
                           }).fail(function() {
@@ -894,20 +1157,20 @@ function deleteTrack(title, artist, year) {
           }
 
         }
-	});
+  });
   });
   
     $(function() {
-    var tooltip = $('.tooltip9');
+    var tooltip = $('#tooltip9');
     tooltip.hide();
     $( "#slider9" ).slider({ 
-	orientation: "vertical", 
+  orientation: "vertical", 
   animate: true,
-	step: 1, 
-	/*range: "min",
-	value: 50,*/
-	min: 1,
-	max: 4,
+  step: 1, 
+  /*range: "min",
+  value: 50,*/
+  min: 1,
+  max: 4,
   start: function(event,ui) {
       if (show_tips)
         tooltip.fadeIn('fast');
@@ -915,10 +1178,14 @@ function deleteTrack(title, artist, year) {
   stop: function(event,ui) {
       tooltip.fadeOut('fast');
     },
-	slide: function( event, ui ) {
-				  val = ui.value;
-				  slider9_value = val;
-          tooltip.text(tooltips_eng[3]);
+  slide: function( event, ui ) {
+          val = ui.value;
+          slider9_value = val;
+          if (lastClicked_onPresetsGrid) 
+          {
+          	lastClicked_onPresetsGrid.className='';
+          	lastClicked_onPresetsGrid = null;
+          }
           //console.log(ui.value);
           $.post('/updateslider', {
                   slider1: slider1_value,
@@ -937,20 +1204,16 @@ function deleteTrack(title, artist, year) {
                   //console.log("uff")
               });
 
-          if (!useBass)
+          if (!useDensity)
           {
-            useBass = true;
-            $('#bass_button').css("background", "url('../static/bands_on.png') no-repeat"); 
-            $('#bass_button').css("background-size", "100%");
-            $('#bass_button').css("width", "10.7%");
-            $('#bass_button').css("height", "10%");
+            enableDensity();
 
             $.post('/usesliders', {
                               loudness: useLoudness,
                               noisiness: useNoisiness,
                               sparseness: useSparseness,
-                              bass: useBass,
-                              high: useHigh
+                              bass: useDensity,
+                              high: useAcousticness
                           }).done(function() {
                               //console.log("Ok")
                           }).fail(function() {
@@ -960,20 +1223,20 @@ function deleteTrack(title, artist, year) {
           }
 
        }
-	});
+  });
   });
 
      $(function() {
-    var tooltip = $('.tooltip10');
+    var tooltip = $('#tooltip10');
     tooltip.hide();
     $( "#slider10" ).slider({ 
-	orientation: "vertical", 
+  orientation: "vertical", 
   animate: true,
-	step: 1, 
-	/*range: "min",
-	value: 50,*/
-	min: 1,
-	max: 4,
+  step: 1, 
+  /*range: "min",
+  value: 50,*/
+  min: 1,
+  max: 4,
   start: function(event,ui) {
       if (show_tips)
         tooltip.fadeIn('fast');
@@ -981,10 +1244,14 @@ function deleteTrack(title, artist, year) {
   stop: function(event,ui) {
       tooltip.fadeOut('fast');
     },
-	slide: function( event, ui ) {
-				  val = ui.value;
-				  slider10_value = val;
-          tooltip.text(tooltips_eng[4]);
+  slide: function( event, ui ) {
+          val = ui.value;
+          slider10_value = val;
+          if (lastClicked_onPresetsGrid) 
+          {
+          	lastClicked_onPresetsGrid.className='';
+          	lastClicked_onPresetsGrid = null;
+          }
           //console.log(ui.value);
           $.post('/updateslider', {
                   slider1: slider1_value,
@@ -1003,20 +1270,16 @@ function deleteTrack(title, artist, year) {
                   //console.log("uff")
               });
 
-          if (!useHigh)
+          if (!useAcousticness)
           {
-            useHigh = true;
-            $('#high_button').css("background", "url('../static/acoustic_on.png') no-repeat"); 
-            $('#high_button').css("background-size", "100%");
-            $('#high_button').css("width", "10.7%");
-            $('#high_button').css("height", "10%");
+            enableAcousticness();
 
             $.post('/usesliders', {
                               loudness: useLoudness,
                               noisiness: useNoisiness,
                               sparseness: useSparseness,
-                              bass: useBass,
-                              high: useHigh
+                              bass: useDensity,
+                              high: useAcousticness
                           }).done(function() {
                               //console.log("Ok")
                           }).fail(function() {
@@ -1026,11 +1289,13 @@ function deleteTrack(title, artist, year) {
           }
 
        }
-	});
+  });
   });
 
 
   $(function() {
+    var tooltip = $('.tooltipsegmentlen');
+    tooltip.hide();
     $( "#slidersegmentlength" ).slider({ 
   orientation: "horizontal", 
   step: 1, 
@@ -1038,6 +1303,14 @@ function deleteTrack(title, artist, year) {
   value: 50,*/
   min: 1,
   max: 5,
+  value: 3,
+  start: function(event,ui) {
+      if (show_tips)
+        tooltip.fadeIn('fast');
+    },
+  stop: function(event,ui) {
+      tooltip.fadeOut('fast');
+    },
   slide: function( event, ui ) {
           val = ui.value;
           console.log(val);
@@ -1051,18 +1324,164 @@ function deleteTrack(title, artist, year) {
       }
   });
   });
-  
+
+
+  function goBackToIndex() {
+    // currentlyPlaying = false;
+    // $.post('/play', {
+    //                       playing: currentlyPlaying
+    //                   }).done(function() {
+    //                       //console.log("Ok")
+    //                   }).fail(function() {
+    //                       //console.log("uff")
+    //                   });
+    $.post('/back', {
+          return_val: true
+        }).done(function() {
+          history.back();
+        }).fail(function() {
+            //console.log("uff")
+        });
+  }
+
+  function createPresetsGrid() {
+  	var grid = clickableGrid(5,1,function(el,row,col,i){
+  	    console.log(row);
+  	    if (i == content[language_selected][33])
+  	    {
+  	      slider8_value = 1;
+  	      slider9_value = 4;
+  	      slider10_value = 1;
+  	      $("#slider6").slider('value', slider6_value);
+  	      $("#slider7").slider('value', slider7_value);
+  	      $("#slider8").slider('value', slider8_value);
+  	      $("#slider9").slider('value', slider9_value);
+  	      $("#slider10").slider('value', slider10_value);
+  	      disableLoudness();
+  	      disableNoisiness();
+  	      enableRhythm();
+  	      enableDensity();
+  	      enableAcousticness();
+  	    }
+  	    else if (i == content[language_selected][34])
+  	    {
+  	      slider6_value = 4;
+  	      slider7_value = 4;
+  	      slider8_value = 4;
+  	      slider9_value = 4;
+  	      slider10_value = 1;
+  	      $("#slider6").slider('value', slider6_value);
+  	      $("#slider7").slider('value', slider7_value);
+  	      $("#slider8").slider('value', slider8_value);
+  	      $("#slider9").slider('value', slider9_value);
+  	      $("#slider10").slider('value', slider10_value);
+  	      enableLoudness();
+  	      enableNoisiness();
+  	      enableRhythm();
+  	      enableDensity();
+  	      enableAcousticness();
+  	    }
+  	    else if (i == content[language_selected][35])
+  	    {
+  	      slider6_value = 1;
+  	      slider8_value = 1;
+  	      slider10_value = 4;
+  	      $("#slider6").slider('value', slider6_value);
+  	      $("#slider7").slider('value', slider7_value);
+  	      $("#slider8").slider('value', slider8_value);
+  	      $("#slider9").slider('value', slider9_value);
+  	      $("#slider10").slider('value', slider10_value);
+  	      enableLoudness();
+  	      disableNoisiness();
+  	      enableRhythm();
+  	      disableDensity();
+  	      enableAcousticness();
+  	    }
+  	    else if (i == content[language_selected][36])
+  	    {
+  	      slider6_value = 4;
+  	      slider8_value = 4;
+  	      slider10_value = 1;
+  	      $("#slider6").slider('value', slider6_value);
+  	      $("#slider7").slider('value', slider7_value);
+  	      $("#slider8").slider('value', slider8_value);
+  	      $("#slider9").slider('value', slider9_value);
+  	      $("#slider10").slider('value', slider10_value);
+  	      enableLoudness();
+  	      disableNoisiness();
+  	      enableRhythm();
+  	      disableDensity();
+  	      enableAcousticness();
+  	    }
+  	    else if (i == content[language_selected][37])
+  	    {
+  	      slider7_value = 4;
+  	      slider8_value = 1;
+  	      slider9_value = 4;
+  	      slider10_value = 1;
+  	      $("#slider6").slider('value', slider6_value);
+  	      $("#slider7").slider('value', slider7_value);
+  	      $("#slider8").slider('value', slider8_value);
+  	      $("#slider9").slider('value', slider9_value);
+  	      $("#slider10").slider('value', slider10_value);
+  	      disableLoudness();
+  	      enableNoisiness();
+  	      enableRhythm();
+  	      enableDensity();
+  	      enableAcousticness();
+  	    }
+
+  	    el.className='clicked';
+  	    if (lastClicked_onPresetsGrid) lastClicked_onPresetsGrid.className='';
+  	    if (lastClicked_onPresetsGrid == el) {
+  	    	disableLoudness();
+  	    	disableNoisiness();
+  	    	disableRhythm();
+  	    	disableDensity();
+  	    	disableAcousticness();
+  	    	lastClicked_onPresetsGrid = null;
+  	    }
+  	    else lastClicked_onPresetsGrid = el;
+
+  	    $.post('/usesliders', {
+  	                      loudness: useLoudness,
+  	                      noisiness: useNoisiness,
+  	                      sparseness: useSparseness,
+  	                      bass: useDensity,
+  	                      high: useAcousticness
+  	                  }).done(function() {
+  	                      //console.log("Ok")
+  	                  }).fail(function() {
+  	                      //console.log("uff")
+  	                  });
+
+  	    $.post('/updateslider', {
+  	            slider1: slider1_value,
+  	            slider2: slider2_value,
+  	            slider3: slider3_value,
+  	            slider4: slider4_value,
+  	            slider5: slider5_value,
+  	            slider6: slider6_value,
+  	            slider7: slider7_value,
+  	            slider8: slider8_value,
+  	            slider9: slider9_value,
+  	            slider10: slider10_value
+  	        }).done(function() {
+  	            //console.log("Ok")
+  	        }).fail(function() {
+  	            //console.log("uff")
+  	        });
+  	});
+  	return grid;
+  }
+     
 
 
 $(document).ready(function() {
 
     // preload images
-    (new Image()).src = '../static/loudness_on.png';
-    (new Image()).src = '../static/noise_on.png';
-    (new Image()).src = '../static/rhythm_on.png';
-    (new Image()).src = '../static/bands_on.png';
-    (new Image()).src = '../static/acoustic_on.png';
-    (new Image()).src = '../static/play.png';
+    (new Image()).src = '../static/button_on.png';
+    (new Image()).src = '../static/pause.png';
     (new Image()).src = '../static/knob0.png';
     (new Image()).src = '../static/knob20.png';
     (new Image()).src = '../static/knob40.png';
@@ -1071,29 +1490,26 @@ $(document).ready(function() {
 
 
     $( "#loudness_button" ).click(function() {
+    	if (lastClicked_onPresetsGrid) 
+    	{
+    		lastClicked_onPresetsGrid.className='';
+    		lastClicked_onPresetsGrid = null;
+    	}
         if (useLoudness)
         {
-           useLoudness = false;
-           $('#loudness_button').css("background", "url('../static/loudness_off.png') no-repeat");
-           $('#loudness_button').css("background-size", "100%");
-           $('#loudness_button').css("width", "10.7%");
-           $('#loudness_button').css("height", "10%");
+           disableLoudness();
         }
         else
         {
-           useLoudness = true;
-           $('#loudness_button').css("background", "url('../static/loudness_on.png') no-repeat"); 
-           $('#loudness_button').css("background-size", "100%");
-           $('#loudness_button').css("width", "10.7%");
-           $('#loudness_button').css("height", "10%");
+           enableLoudness();
         }
 
         $.post('/usesliders', {
                           loudness: useLoudness,
                           noisiness: useNoisiness,
                           sparseness: useSparseness,
-                          bass: useBass,
-                          high: useHigh
+                          bass: useDensity,
+                          high: useAcousticness
                       }).done(function() {
                           //console.log("Ok")
                       }).fail(function() {
@@ -1104,29 +1520,26 @@ $(document).ready(function() {
     });
 
     $( "#noisiness_button" ).click(function() {
+    	if (lastClicked_onPresetsGrid) 
+    	{
+    		lastClicked_onPresetsGrid.className='';
+    		lastClicked_onPresetsGrid = null;
+    	}
         if (useNoisiness)
         {
-           useNoisiness = false;
-           $('#noisiness_button').css("background", "url('../static/noise_off.png') no-repeat");
-           $('#noisiness_button').css("background-size", "100%");
-           $('#noisiness_button').css("width", "10.7%");
-           $('#noisiness_button').css("height", "10%");
+           disableNoisiness();
         }
         else
         {
-           useNoisiness = true;
-           $('#noisiness_button').css("background", "url('../static/noise_on.png') no-repeat"); 
-           $('#noisiness_button').css("background-size", "100%");
-           $('#noisiness_button').css("width", "10.7%");
-           $('#noisiness_button').css("height", "10%");
+           enableNoisiness();
         }
 
         $.post('/usesliders', {
                           loudness: useLoudness,
                           noisiness: useNoisiness,
                           sparseness: useSparseness,
-                          bass: useBass,
-                          high: useHigh
+                          bass: useDensity,
+                          high: useAcousticness
                       }).done(function() {
                           //console.log("Ok")
                       }).fail(function() {
@@ -1136,30 +1549,27 @@ $(document).ready(function() {
 
     });
 
-    $( "#sparseness_button" ).click(function() {
+    $( "#rhythm_button" ).click(function() {
+    	if (lastClicked_onPresetsGrid) 
+    	{
+    		lastClicked_onPresetsGrid.className='';
+    		lastClicked_onPresetsGrid = null;
+    	}
         if (useSparseness)
         {
-           useSparseness = false;
-           $('#sparseness_button').css("background", "url('../static/rhythm_off.png') no-repeat");
-           $('#sparseness_button').css("background-size", "100%");
-           $('#sparseness_button').css("width", "10.7%");
-           $('#sparseness_button').css("height", "10%");
+           disableRhythm();
         }
         else
         {
-           useSparseness = true;
-           $('#sparseness_button').css("background", "url('../static/rhythm_on.png') no-repeat"); 
-           $('#sparseness_button').css("background-size", "100%");
-           $('#sparseness_button').css("width", "10.7%");
-           $('#sparseness_button').css("height", "10%");
+           enableRhythm();
         }
 
         $.post('/usesliders', {
                           loudness: useLoudness,
                           noisiness: useNoisiness,
                           sparseness: useSparseness,
-                          bass: useBass,
-                          high: useHigh
+                          bass: useDensity,
+                          high: useAcousticness
                       }).done(function() {
                           //console.log("Ok")
                       }).fail(function() {
@@ -1169,30 +1579,27 @@ $(document).ready(function() {
 
     });
 
-    $( "#bass_button" ).click(function() {
-        if (useBass)
+    $( "#density_button" ).click(function() {
+    	if (lastClicked_onPresetsGrid) 
+    	{
+    		lastClicked_onPresetsGrid.className='';
+    		lastClicked_onPresetsGrid = null;
+    	}
+        if (useDensity)
         {
-           useBass = false;
-           $('#bass_button').css("background", "url('../static/bands_off.png') no-repeat");
-           $('#bass_button').css("background-size", "100%");
-           $('#bass_button').css("width", "10.7%");
-           $('#bass_button').css("height", "10%");
+           disableDensity();
         }
         else
         {
-           useBass = true;
-           $('#bass_button').css("background", "url('../static/bands_on.png') no-repeat"); 
-           $('#bass_button').css("background-size", "100%");
-           $('#bass_button').css("width", "10.7%");
-           $('#bass_button').css("height", "10%");
+           enableDensity();
         }
 
         $.post('/usesliders', {
                           loudness: useLoudness,
                           noisiness: useNoisiness,
                           sparseness: useSparseness,
-                          bass: useBass,
-                          high: useHigh
+                          bass: useDensity,
+                          high: useAcousticness
                       }).done(function() {
                           //console.log("Ok")
                       }).fail(function() {
@@ -1202,30 +1609,27 @@ $(document).ready(function() {
 
     });
 
-    $( "#high_button" ).click(function() {
-        if (useHigh)
+    $( "#acoustic_button" ).click(function() {
+    	if (lastClicked_onPresetsGrid) 
+    	{
+    		lastClicked_onPresetsGrid.className='';
+    		lastClicked_onPresetsGrid = null;
+    	}
+        if (useAcousticness)
         {
-           useHigh = false;
-           $('#high_button').css("background", "url('../static/acoustic_off.png') no-repeat");
-           $('#high_button').css("background-size", "100%");
-           $('#high_button').css("width", "10.7%");
-           $('#high_button').css("height", "10%");
+           disableAcousticness();
         }
         else
         {
-           useHigh = true;
-           $('#high_button').css("background", "url('../static/acoustic_on.png') no-repeat"); 
-           $('#high_button').css("background-size", "100%");
-           $('#high_button').css("width", "10.7%");
-           $('#high_button').css("height", "10%");
+           enableAcousticness();
         }
 
         $.post('/usesliders', {
                           loudness: useLoudness,
                           noisiness: useNoisiness,
                           sparseness: useSparseness,
-                          bass: useBass,
-                          high: useHigh
+                          bass: useDensity,
+                          high: useAcousticness
                       }).done(function() {
                           //console.log("Ok")
                       }).fail(function() {
@@ -1244,6 +1648,7 @@ $(document).ready(function() {
            $('#play_button').css("background-size", "contain");
            $('#play_button').css("min-width", "5%");
            $('#play_button').css("min-height", "11%");
+           goBackToIndex();
         }
         else
         {
@@ -1261,254 +1666,35 @@ $(document).ready(function() {
                           //console.log("uff")
                       });
 
-
+        if (firstSong) {
+        	// $('#fakeaudiocontainer').html('<audio autoplay><source src="http://localhost:8080/audio.mp3">Your browser does not support the audio element.</audio>');      
+          // setTimeout(function(){
+          //     if (currentlyPlaying)
+          //       $('#fakeaudiocontainer').html('<audio autoplay><source src="http://localhost:8080/audio.mp3">Your browser does not support the audio element.</audio>');      
+          // }, 0);
+          firstSong = false;
+        }
     });
-
-    var lastClicked_onPresetsGrid;
-    var grid = clickableGrid(4,1,function(el,row,col,i){
-
-        if (i == "Abstract")
-        {
-          slider6_value = 10;
-          slider7_value = 1;
-          slider8_value = 5;
-          slider9_value = 1;
-          slider10_value = 1;
-          $("#slider6").slider('value', slider6_value);
-          $("#slider7").slider('value', slider7_value);
-          $("#slider8").slider('value', slider8_value);
-          $("#slider9").slider('value', slider9_value);
-          $("#slider10").slider('value', slider10_value);
-
-          useLoudness = true;
-          $('#loudness_button').css("background", "url('../static/loudness_on.png') no-repeat"); 
-          $('#loudness_button').css("background-size", "100%");
-          $('#loudness_button').css("width", "10.7%");
-          $('#loudness_button').css("height", "10%");
-          useNoisiness = false;
-          $('#noisiness_button').css("background", "url('../static/noise_off.png') no-repeat");
-          $('#noisiness_button').css("background-size", "100%");
-          $('#noisiness_button').css("width", "10.7%");
-          $('#noisiness_button').css("height", "10%");
-          useSparseness = true;
-          $('#sparseness_button').css("background", "url('../static/rhythm_on.png') no-repeat"); 
-          $('#sparseness_button').css("background-size", "100%");
-          $('#sparseness_button').css("width", "10.7%");
-          $('#sparseness_button').css("height", "10%");
-          useBass = false;
-          $('#bass_button').css("background", "url('../static/bands_off.png') no-repeat");
-          $('#bass_button').css("background-size", "100%");
-          $('#bass_button').css("width", "10.7%");
-          $('#bass_button').css("height", "10%");
-          useHigh = true;
-          $('#high_button').css("background", "url('../static/acoustic_on.png') no-repeat");
-          $('#high_button').css("background-size", "100%");
-          $('#high_button').css("width", "10.7%");
-          $('#high_button').css("height", "10%");
-        }
-
-        else if (i == "Highly Rhythmic")
-        {
-          slider6_value = 45;
-          slider7_value = 5;
-          slider8_value = 5;
-          slider9_value = 1;
-          slider10_value = 1;
-          $("#slider6").slider('value', slider6_value);
-          $("#slider7").slider('value', slider7_value);
-          $("#slider8").slider('value', slider8_value);
-          $("#slider9").slider('value', slider9_value);
-          $("#slider10").slider('value', slider10_value);
-
-
-          useLoudness = true;
-          $('#loudness_button').css("background", "url('../static/loudness_on.png') no-repeat"); 
-          $('#loudness_button').css("background-size", "100%");
-          $('#loudness_button').css("width", "10.7%");
-          $('#loudness_button').css("height", "10%");
-          useNoisiness = true;
-          $('#noisiness_button').css("background", "url('../static/noise_on.png') no-repeat");
-          $('#noisiness_button').css("background-size", "100%");
-          $('#noisiness_button').css("width", "10.7%");
-          $('#noisiness_button').css("height", "10%");
-          useSparseness = true;
-          $('#sparseness_button').css("background", "url('../static/rhythm_on.png') no-repeat"); 
-          $('#sparseness_button').css("background-size", "100%");
-          $('#sparseness_button').css("width", "10.7%");
-          $('#sparseness_button').css("height", "10%");
-          useBass = false;
-          $('#bass_button').css("background", "url('../static/bands_off.png') no-repeat");
-          $('#bass_button').css("background-size", "100%");
-          $('#bass_button').css("width", "10.7%");
-          $('#bass_button').css("height", "10%");
-          useHigh = false;
-          $('#high_button').css("background", "url('../static/acoustic_off.png') no-repeat");
-          $('#high_button').css("background-size", "100%");
-          $('#high_button').css("width", "10.7%");
-          $('#high_button').css("height", "10%");
-        }
-        else if (i == "Calm")
-        {
-          slider6_value = 10;
-          slider7_value = 1;
-          slider8_value = 1;
-          slider9_value = 1;
-          slider10_value = 4;
-          $("#slider6").slider('value', slider6_value);
-          $("#slider7").slider('value', slider7_value);
-          $("#slider8").slider('value', slider8_value);
-          $("#slider9").slider('value', slider9_value);
-          $("#slider10").slider('value', slider10_value);
-
-          useLoudness = true;
-          $('#loudness_button').css("background", "url('../static/loudness_on.png') no-repeat"); 
-          $('#loudness_button').css("background-size", "100%");
-          $('#loudness_button').css("width", "10.7%");
-          $('#loudness_button').css("height", "10%");
-          useNoisiness = true;
-          $('#noisiness_button').css("background", "url('../static/noise_on.png') no-repeat");
-          $('#noisiness_button').css("background-size", "100%");
-          $('#noisiness_button').css("width", "10.7%");
-          $('#noisiness_button').css("height", "10%");
-          useSparseness = true;
-          $('#sparseness_button').css("background", "url('../static/rhythm_on.png') no-repeat"); 
-          $('#sparseness_button').css("background-size", "100%");
-          $('#sparseness_button').css("width", "10.7%");
-          $('#sparseness_button').css("height", "10%");
-          useBass = false;
-          $('#bass_button').css("background", "url('../static/bands_off.png') no-repeat");
-          $('#bass_button').css("background-size", "100%");
-          $('#bass_button').css("width", "10.7%");
-          $('#bass_button').css("height", "10%");
-          useHigh = true;
-          $('#high_button').css("background", "url('../static/acoustic_on.png') no-repeat");
-          $('#high_button').css("background-size", "100%");
-          $('#high_button').css("width", "10.7%");
-          $('#high_button').css("height", "10%");
-        }
-        else if (i == "Noise")
-        {
-          slider6_value = 10;
-          slider7_value = 5;
-          slider8_value = 1;
-          slider9_value = 4;
-          slider10_value = 1;
-          $("#slider6").slider('value', slider6_value);
-          $("#slider7").slider('value', slider7_value);
-          $("#slider8").slider('value', slider8_value);
-          $("#slider9").slider('value', slider9_value);
-          $("#slider10").slider('value', slider10_value);
-
-          useLoudness = true;
-          $('#loudness_button').css("background", "url('../static/loudness_on.png') no-repeat"); 
-          $('#loudness_button').css("background-size", "100%");
-          $('#loudness_button').css("width", "10.7%");
-          $('#loudness_button').css("height", "10%");
-          useNoisiness = true;
-          $('#noisiness_button').css("background", "url('../static/noise_on.png') no-repeat");
-          $('#noisiness_button').css("background-size", "100%");
-          $('#noisiness_button').css("width", "10.7%");
-          $('#noisiness_button').css("height", "10%");
-          useSparseness = true;
-          $('#sparseness_button').css("background", "url('../static/rhythm_on.png') no-repeat"); 
-          $('#sparseness_button').css("background-size", "100%");
-          $('#sparseness_button').css("width", "10.7%");
-          $('#sparseness_button').css("height", "10%");
-          useBass = true;
-          $('#bass_button').css("background", "url('../static/bands_on.png') no-repeat");
-          $('#bass_button').css("background-size", "100%");
-          $('#bass_button').css("width", "10.7%");
-          $('#bass_button').css("height", "10%");
-          useHigh = false;
-          $('#high_button').css("background", "url('../static/acoustic_off.png') no-repeat");
-          $('#high_button').css("background-size", "100%");
-          $('#high_button').css("width", "10.7%");
-          $('#high_button').css("height", "10%");
-        }
-
-        $.post('/usesliders', {
-                          loudness: useLoudness,
-                          noisiness: useNoisiness,
-                          sparseness: useSparseness,
-                          bass: useBass,
-                          high: useHigh
-                      }).done(function() {
-                          //console.log("Ok")
-                      }).fail(function() {
-                          //console.log("uff")
-                      });
-
-        $.post('/updateslider', {
-                slider1: slider1_value,
-                slider2: slider2_value,
-                slider3: slider3_value,
-                slider4: slider4_value,
-                slider5: slider5_value,
-                slider6: slider6_value,
-                slider7: slider7_value,
-                slider8: slider8_value,
-                slider9: slider9_value,
-                slider10: slider10_value
-            }).done(function() {
-                //console.log("Ok")
-            }).fail(function() {
-                //console.log("uff")
-            });
-
-        el.className='clicked';
-        if (lastClicked_onPresetsGrid) lastClicked_onPresetsGrid.className='';
-        lastClicked_onPresetsGrid = el;
-    });
-
-    document.getElementById("gridcontainer").appendChild(grid);
-
-    function clickableGrid( rows, cols, callback ){
-        var i=0;
-        var grid = document.createElement('table');
-        grid.className = 'grid';
-        for (var r=0;r<rows;++r){
-            var tr = grid.appendChild(document.createElement('tr'));
-            for (var c=0;c<cols;++c){
-                var cell = tr.appendChild(document.createElement('td'));
-                var cont = "";
-                if (r == 0)
-                  cont = "Abstract";
-                else if (r == 1)
-                  cont = "Highly Rhythmic";
-                else if (r == 2)
-                  cont = "Calm";
-                else
-                  cont = "Noise";
-                cell.innerHTML = cont;
-                cell.addEventListener('click',(function(el,r,c,cont){
-                    return function(){
-                        callback(el,r,c,cont);
-                    }
-                })(cell,r,c,cont),false);
-            }
-        }
-        return grid;
-    }
 
 
     $( "#starredsongs" ).click(function() {
       if (showingMixer)
       {
-        $( ".wholecontent" ).animate({ "marginLeft": "-85%", "content":"ciao" }, 400);
-        $("#starredsongs").html("Show Mixer &laquo;")
+        $( ".wholecontent" ).animate({ "marginLeft": "-85%"}, 400);
+        $("#starredsongs").html(content[language_selected][23])
         $( "#hints").animate({ "opacity": "0"}, 400);
         $( "#hints").css({ "display": "none"});
         $( "#show-adv-settings").animate({ "opacity": "0"}, 400);
         $( "#show-adv-settings").css({ "display": "none"});
         $( ".starthissong").animate({ "opacity": "1"}, 400);
         $( ".starthissong").css({ "display": "block"});
-        $( "#language").css("margin-top", "59px");
+        $( "#language").css("margin-top", "110px");
         showingMixer = false;
       }
       else
       {
         $( ".wholecontent" ).animate({ "marginLeft": "0%" },  400);
-        $("#starredsongs").html("Starred Tracks &raquo;")
+        $("#starredsongs").html(content[language_selected][6])
         $( "#hints").animate({ "opacity": "1"}, 400);
         $( "#hints").css({ "display": "block"});
         $( "#show-adv-settings").animate({ "opacity": "1"}, 400);
@@ -1567,7 +1753,7 @@ function addPlayedSong(song, artist, year) {
       $('.lasttableclass').append('<tr><td class="title" style="width:40%;">' + last_played_songs[i][0] + '</td><td class="artist" style="width:40%;">' + last_played_songs[i][1] + '</td><td class="year" style="width:10%;">' +last_played_songs[i][2] + '</td><td><button type="button" class="star-track-button" style="background: transparent; border: none; font-size: 1.4vw; margin-left: 27%; outline: none;">★</button></td></tr>');
     }
 
-  }  
+  }   
 }
 
 
@@ -1611,6 +1797,23 @@ var pause_source = new EventSource('/autopause');
   };
 
 
+  var loading_source = new EventSource('/loading');
+  loading_source.onmessage = function(event){
+    var string_ = event.data
+    if (string_ == "True") // if on automatic pause
+    {
+      console.log("loading over");
+      // $( "body" ).animate({ "background-image": "url('../static/tweed.png')"}, 400);
+      // $( ".mixer" ).animate({ "background": "url('../static/mixer.png')"}, 400);
+       // $('body').css("background-image", "url('../static/tweed.png')");
+       // $('.mixer').css("background", "url('mixer.png') no-repeat"); 
+       // $('#play_button').css("background-size", "contain");
+       // $('#play_button').css("min-width", "5%");
+       // $('#play_button').css("min-height", "11%");
+    }
+  };
+
+  adaptChanges();  // for properly loading text content with default language 
 
 });
 
@@ -1618,22 +1821,14 @@ var pause_source = new EventSource('/autopause');
 </head>
 
 <body>
-<!-- <audio src="http://192.168.1.12:8000/audio.mp3">
-<p>If you are reading this, it is because your browser does not support the audio element.     </p>
-</audio> -->
 
-<!-- <audio controls>
-<source src="http://192.168.1.12:8000/audio.mp3">
-this works
-Your browser does not support the audio element.
-</audio> -->
-<div class="wholecontent">
+<div class="wholecontent" unselectable='on' onselectstart='return false;'>
   <div class="page1">
     <div class="page1content">
       <div id="advanced-settings">
         <div style="position:relative; margin-top:2%; left:95%; width:5%; cursor:pointer;" onclick="hideAdvancedSettings();">&#9747;</div>
         <div id="settings-line" class="settings-line">
-          <div id="advsettings1" style="vertical-align:top; text-align:center;">Two consecutive segments must belong to different songs:</div>
+          <div id="advsettings1" style="vertical-align:top; text-align:center;"></div>
           <label class="switch" style="vertical-align:top; box-shadow:none">
             <input type="checkbox" class="switch-input" onclick='handleCheckboxSetting1(this);' checked>
             <span class="switch-label" data-on="On" data-off="Off"></span>
@@ -1641,23 +1836,23 @@ Your browser does not support the audio element.
           </label>
         </div>
         <div id="settings-line2" class="settings-line" style="margin-top:0%; opacity:0.2;">
-          <div id="advsettings2" style="vertical-align:top; text-align:center;">Two consecutive segments must be different:</div>
-          <label id="switchsetting2" class="switch" style="vertical-align:top; box-shadow:none">
-            <input id="checkboxsetting2" type="checkbox" class="switch-input" onclick='handleCheckboxSetting2(this);' checked>
+          <div id="advsettings2" style="vertical-align:top; text-align:center;"></div>
+          <label id="switchsetting2" class="switch" style="vertical-align:top; box-shadow:none; cursor:default;">
+            <input id="checkboxsetting2" type="checkbox" class="switch-input" onclick='handleCheckboxSetting2(this);' checked disabled="true">
             <span class="switch-label" data-on="On" data-off="Off"></span>
             <span class="switch-handle"></span>
           </label>
         </div>
         <div class="settings-line" style="margin-top:0%;">
-          <div style="vertical-align:top; text-align:center;">Automatically suspend the playback:</div>
+          <div id="suspendsetting" style="vertical-align:top; text-align:center;"></div>
           <label class="switch" style="vertical-align:top; box-shadow:none">
-            <input id="checkboxsetting2" type="checkbox" class="switch-input" onclick='handlePlaybackCheckbox(this);'>
+            <input type="checkbox" class="switch-input" onclick='handlePlaybackCheckbox(this);'>
             <span class="switch-label" data-on="On" data-off="Off"></span>
             <span class="switch-handle"></span>
           </label>
         </div>
         <div id="playbackmins" class="settings-line" style="margin-top:0%; opacity:0.2;">
-          <div style="vertical-align:top; text-align:center;">Every:</div>
+          <div id="every-label" style="vertical-align:top; text-align:center;"></div>
           <form class="playback">
               <select id="playback" disabled="true">
                   <option>15 minutes</option>
@@ -1667,87 +1862,124 @@ Your browser does not support the audio element.
           </form>
         </div>
         <div class="settings-line" style="margin-top:0%; margin-bottom:3%;">
-          <div id="credits">Software developed by Giuseppe Bandiera,<br>supervised by Dr. Perfecto Herrera Boyer.<br>Music Technology Group, Universitat Pompeu Fabra<br>2014 Barcelona</div>
+          <div id="credits"></div>
         </div>
       </div>
       <div class="mixer">
 
         <div class="monitor">
-        	<div id="title">N/A</div>
-        	<div id="artist">N/A</div>
-        	<div id="year">N/A</div>
+          	<div style="display:inline-block; width:100%;">
+	          	<div id="titlelabel" class="monitor_info monitor_static"></div>
+	          	<div id="title" class="monitor_info monitor_dynamic">N/A</div>
+          	</div>
+          	<div style="display:inline-block; margin-top:0.3%; width:100%;">
+	          	<div id="artistlabel" class="monitor_info monitor_static"></div>
+	          	<div id="artist" class="monitor_info monitor_dynamic">N/A</div>
+          	</div>
+          	<div style="display:inline-block; margin-top:0.3%; width:100%;">
+	          	<div id="yearlabel" class="monitor_info monitor_static"></div>
+	          	<div id="year" class="monitor_info monitor_dynamic">N/A</div>
+          	</div>
         </div>
 
         <div class="playback_buttons">
           <div id="play_button"></div>
           <div id="star_button"></div>
+          <div id="fakeaudiocontainer"></div>
         </div>
 
         <div class="leftpanel">
           <div class="uppersliders">
-          	<div id="slider"></div>
-          	<div id="slider2"></div>
-          	<div id="slider3"></div>
-          	<div id="slider4"></div>
-          	<div id="slider5"></div>
+          	<div class="slidergroup slider1group">
+            	<div id="slider1" class="upperslider"></div>
+            	<div class="white_label decade">'70s</div>
+            </div>
+            <div class="slidergroup slider2group">
+            	<div id="slider2" class="upperslider"></div>
+            	<div class="white_label decade">'80s</div>
+            </div>
+            <div class="slidergroup slider3group">
+            	<div id="slider3" class="upperslider"></div>
+            	<div class="white_label decade">'90s</div>
+            </div>
+            <div class="slidergroup slider4group">
+            	<div id="slider4" class="upperslider"></div>
+            	<div class="white_label decade">'00s</div>
+            </div>
+            <div class="slidergroup slider5group">
+            	<div id="slider5" class="upperslider"></div>
+            	<div class="white_label decade">'10s</div>
+            </div>
           </div>
 
           <div class="lowersliders">
-            <div id="slider6group">
-              <span class="tooltip6"></span>
-              <div id="slider6"></div>
-              <div id="loudness_button"></div>
+            <div class="slidergroup">
+              <span id="tooltip6" class="slidertooltip"></span>
+              <div id="slider6" class="lowerslider"></div>
+              <div id="loudness_button"><div id="loudness_label" class="white_label sound_button"></div></div>
             </div>
-            <div id="slider7group">
-              <span class="tooltip7"></span>
-          	  <div id="slider7"></div>
-              <div id="noisiness_button"></div>
+            <div class="slidergroup slider7group">
+              <span id="tooltip7" class="slidertooltip"></span>
+              <div id="slider7" class="lowerslider"></div>
+              <div id="noisiness_button"><div id="noisiness_label" class="white_label sound_button"></div></div>
             </div>
-            <div id="slider8group">
-              <span class="tooltip8"></span>
-          	  <div id="slider8"></div>
-              <div id="sparseness_button"></div>
-          	</div>
-            <div id="slider9group">
-              <span class="tooltip9"></span>
-              <div id="slider9"></div>
-              <div id="bass_button"></div>
-          	</div>
-            <div id="slider10group">
-              <span class="tooltip10"></span>
-              <div id="slider10"></div>
-              <div id="high_button"></div>
+            <div class="slidergroup slider8group">
+              <span id="tooltip8" class="slidertooltip"></span>
+              <div id="slider8" class="lowerslider"></div>
+              <div id="rhythm_button"><div id="rhythm_label" class="white_label sound_button"></div></div>
+            </div>
+            <div class="slidergroup slider9group">
+              <span id="tooltip9" class="slidertooltip"></span>
+              <div id="slider9" class="lowerslider"></div>
+              <div id="density_button"><div id="density_label" class="white_label sound_button"></div></div>
+            </div>
+            <div class="slidergroup slider10group">
+              <span id="tooltip10" class="slidertooltip"></span>
+              <div id="slider10" class="lowerslider"></div>
+              <div id="acoustic_button"><div id="acoustic_label" class="white_label sound_button"></div></div>
             </div>
           </div> <!-- end .lowersliders -->
 
         </div> <!-- end .leftpanel -->
 
         <div id="rightpanel">
-          <div id="volume-knob">
-            <input type="text" value="100" class="dial">
+          <div id="volume">
+	          <div id="volume-knob">
+	            <input type="text" value="100" class="dial">
+	          </div>
+	          <div id="volumelabel" class="white_label">Volume</div>
           </div>
-          <div id="slidersegmentlength"></div>
-          <div id="gridcontainer"></div>
+          <div id="segmentlength">
+	          <span class="tooltipsegmentlen"></span>
+	          <div id="slidersegmentlength"></div>
+	          <div id="segmentlengthlabel" class="white_label">Segment Length</div>
+          </div>
+          <div id="presets">
+	          <div id="grid_hidden_scroll" style="overflow-y:auto; overflow-x:hidden; width:92.1%;">
+	            <div id="gridcontainer"></div>
+	          </div>
+	          <div id="presetslabel" class="white_label">Presets</div>
+          </div>
         </div>
 
       </div> <!-- end .mixer -->
 
+      <div id="backtomenu" onclick="goBackToIndex();"></div>
+
       <div class="controlpanel">
 
-        <div id="starredsongs">Starred Tracks &raquo;</div>
-        <div id="hints"><div id="hints-label">TIPS:</div>
+        <div id="starredsongs"></div>
+        <div id="hints"><div id="hints-label" style="font-family: mecanolight;"></div>
           <label class="switch">
             <input type="checkbox" class="switch-input" onclick='handleCheckbox(this);' checked>
             <span class="switch-label" data-on="On" data-off="Off"></span>
             <span class="switch-handle"></span>
           </label>
         </div> <!-- end of hints -->
-        <div id="show-adv-settings" onclick="showAdvancedSettings();">Advanced Settings</div>
-        <div id="starthissong" class="starthissong">&#9733; Add current song</div>
-        <div id="clearlist" class="starthissong" style="margin-top:20%;">Clear list</div>
-        <div id="emaillist" class="starthissong" style="margin-top:20%;">Send list to email</div>
-        <div id="language">LANGUAGE:
-        <!--    <div id="language-selected-wrapper" onmouseover="showLanguageMenu(false);" onclick="showLanguageMenu(true);" onmouseout="hideLanguageMenu();"> -->
+        <div id="show-adv-settings" onclick="showAdvancedSettings();"></div>
+        <div id="starthissong" class="starthissong"></div>
+        <div id="clearlist" class="starthissong" style="margin-top:20%;"></div>
+        <div id="language"><div id="language-label" style="font-family: mecanolight;"></div>
            <div id="language-selected-wrapper" onmouseover="showLanguageMenu(false);">
              <div id="language-selected" onclick="showLanguageMenu(true);">
                <img src="{{ url_for('static', filename='eng.png') }}" /><p>Eng</p>
@@ -1759,23 +1991,20 @@ Your browser does not support the audio element.
              </ul>
            </div> <!-- end of language-selected-wrapper -->
          </div> <!-- end of #language -->
-<!--         <div class="credits">Coding and gui:
-          <div class="name">Giuseppe Bandiera</div>
-        </div> -->
       </div> <!-- end .controlpanel -->
     </div> <!-- end .page1content -->
   </div> <!-- end .page1 -->
 
   <div class="page2">
     <div class="page2content"> 
-      <p>Starred tracks:</p>
+      <p id="starred-title"></p>
       <div class="starredsongstabcontainer">
         <table class = "head">
           <tr>
-            <td style="width: 40%;">Title</td>
-            <td style="width: 40%;">Artist</td>
-            <td style="width: 10%;">Year</td>
-            <td style="width: 10%;">Delete</td>
+            <td class="title-column" style="width: 40%;"></td>
+            <td class="artist-column" style="width: 40%;"></td>
+            <td class="year-column" style="width: 10%;"></td>
+            <td class="delete-column" style="width: 10%;"></td>
           </tr>
         </table>
 
@@ -1785,15 +2014,15 @@ Your browser does not support the audio element.
         </div>
       </div> <!-- end #starredsongstabcontainer -->
 
-      <p>Last tracks played:</p>
+      <p id="last-tracks-label"></p>
 
       <div class="lastplayedcontainer">
         <table class = "head">
           <tr>
-            <td style="width: 40%;">Title</td>
-            <td style="width: 40%;">Artist</td>
-            <td style="width: 10%;">Year</td>
-            <td style="width: 10%;">Starred</td>
+            <td class="title-column" style="width: 40%;"></td>
+            <td class="artist-column" style="width: 40%;"></td>
+            <td class="year-column" style="width: 10%;"></td>
+            <td class="starred-column" style="width: 10%;"></td>
           </tr>
         </table>
 

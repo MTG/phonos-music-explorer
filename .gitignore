@@ -1,0 +1,7 @@
+app/static/MecanoBlack.otf
+app/static/MecanoLight.otf
+app/static/MecanoRegular.otf
+app/static/MecanoUltraLight.otf
+*.pyc
+app/music
+app/phonos

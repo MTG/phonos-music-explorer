@@ -26,6 +26,11 @@ body
 }
 
 @font-face {
+    font-family: bebas;
+    src: url(BebasNeue.otf);
+}
+
+@font-face {
     font-family: camelia;
     src: url(RNS_Camelia.otf);
     font-weight: bold;
@@ -61,7 +66,7 @@ body
 }
 
 h1 {
-	font-family: mecano, camelia, sans-serif;
+	font-family: mecano;
 	font-size: 1.15em;
 	font-size: 1.405vw;
 	color: #ffffff;
@@ -73,7 +78,7 @@ h1 {
 	margin-right: -2%;
 	width:10%;
 	text-transform: uppercase;
-	font-family: mecano, camelia, sans-serif;
+	font-family: mecano;
 	text-align: center;
 	font-size: 1.15em;
 	font-size: 1.5vw;
@@ -168,6 +173,15 @@ ul#language-menu li {
 	border-style: solid;
 }
 
+/*.credits {
+	margin-top:70px;
+}
+
+.name {
+	font-family:bebas;
+	font-size: 2vw;
+	margin-top: 3%;
+}*/
 
 #show-adv-settings{
 	border-radius: 16%;
@@ -178,7 +192,7 @@ ul#language-menu li {
 	width:90%;
 	margin: auto;
 	margin-top: 50%;
-	font-family: mecano, camelia, sans-serif;
+	font-family: mecano;
 	font-size: 0.6em;
 	padding: 4%;
 	padding-top: 3%;
@@ -197,7 +211,7 @@ ul#language-menu li {
 	width:90%;
 	margin: auto;
 	margin-top: 50%;
-	font-family: mecano, camelia, sans-serif;
+	font-family: mecano;
 	font-size: 0.6em;
 	padding: 4%;
 	padding-top: 3%;
@@ -250,7 +264,7 @@ ul#language-menu li {
 }
 
 .white_label {
-	font-family: mecano, camelia, sans-serif;
+	font-family: mecano;
 	text-align: center;
 	text-transform: uppercase;
 	color: white;
@@ -269,7 +283,7 @@ ul#language-menu li {
 
 .monitor_static
 {
-	font-family: mecanolight, camelia, sans-serif;
+	font-family: mecanolight;
 	vertical-align: bottom;
 	width: 18%;
 	float: left;
@@ -279,7 +293,7 @@ ul#language-menu li {
 
 .monitor_dynamic
 {
-	font-family: mecano, camelia, sans-serif;
+	font-family: mecano;
 	vertical-align: bottom;
 }
 
@@ -512,11 +526,6 @@ ul#language-menu li {
 	width: 90%;
 }
 
-table.grid
-{
-	width: 80%;
-}
-
 #advanced-settings
 {
 	display: none;
@@ -535,7 +544,7 @@ table.grid
 .settings-line
 {
 	display: inline-block;
-	font-family: mecano, camelia, sans-serif;
+	font-family: mecano;
 	position: relative;
 	width: 90%;
 	font-size: 1.2vw;
@@ -552,7 +561,7 @@ table.grid
 	text-indent: 0.01px; 
 	text-overflow: ""; 
 	margin-top: 1%;
-	font-family: mecano, camelia, sans-serif;
+	font-family: mecano;
 	font-size: 0.9vw;
 	display: block;
 	margin-left: auto;
@@ -829,7 +838,7 @@ table.grid
 	float: left;
 	height: 119px;
 	overflow-y: auto;
-	font-family: mecano, camelia, sans-serif;
+	font-family: mecano;
 	font-size: 1.15em;
 	font-size: 1.405vw;
 }
@@ -839,7 +848,7 @@ table.grid
 	/*margin-top:1.3em; */
 	margin-left: 0.0em; 
 	width: 100%; 
-	font-family: mecanolight, camelia, sans-serif;
+	font-family: mecanolight;
 }
 .grid td {
     cursor:pointer;
@@ -855,7 +864,7 @@ table.grid
 
 .starredsongstabcontainer {
     width: 80%;
-    font-family: mecano, camelia, sans-serif;
+    font-family: mecano;
     font-size: 1.3vw;
     color: white;
 }
@@ -870,7 +879,7 @@ table.grid
     border-width: thin;
     border-color: rgba(47, 47, 47, 0.7);
     border-style: dashed;
-    font-family: mecanobold, camelia, sans-serif;
+    font-family: mecanobold;
 }
 
 table tr td {
@@ -887,7 +896,7 @@ table.head tr td {
     overflow-y: auto;
     border-width: thin;
     border-color: rgba(47, 47, 47, 0.7);
-    font-family: mecanolight, camelia, sans-serif;
+    font-family: mecanolight;
     border-style: dashed;
 }
 
@@ -897,14 +906,14 @@ table.head tr td {
 
 .page2content p {
 	padding:3% 2% 1% 2%;
-	font-family: mecano, camelia, sans-serif;
+	font-family: mecano;
 	font-size: 1.3vw;
 	color: white;
 }
 
 .lastplayedcontainer {
     width: 80%;
-    font-family: mecano, camelia, sans-serif;
+    font-family: mecano;
     font-size: 1.3vw;
     color: white;
 }
@@ -919,7 +928,7 @@ table.head tr td {
     border-width: thin;
     border-color: rgba(47, 47, 47, 0.7);
     border-style: dashed;
-    font-family: mecanobold, camelia, sans-serif;
+    font-family: mecanobold;
 }
 
 table tr td {
@@ -939,7 +948,7 @@ table.head tr td {
     border-width: thin;
     border-color: rgba(47, 47, 47, 0.7);
     border-style: dashed;
-    font-family: mecanolight, camelia, sans-serif;
+    font-family: mecanolight;
 }
 
 .lastplayedtable tr:nth-child(even) td { background: rgba(60, 60, 60, 0.3); }   
@@ -953,7 +962,7 @@ table.head tr td {
 	text-decoration: underline;
 	padding-bottom: 5%;
 	color: rgb(200, 198, 198);
-	font-family: mecano, camelia, sans-serif;
+	font-family: mecano;
 }
 
 @media screen and (min-height: 800px) {
@@ -1056,11 +1065,6 @@ table.head tr td {
     #gridcontainer
     {
     	height: 111.4px;
-    }
-
-    table.grid
-    {
-    	width: 82.7%;
     }
 
     .slidertooltip

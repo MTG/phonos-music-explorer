@@ -242,7 +242,7 @@
       var i=0;
       var grid = document.createElement('table');
       grid.className = 'grid';
-      // grid.style.width = "82.7%";
+      grid.style.width = "82.7%";
       for (var r=0;r<rows;++r){
           var tr = grid.appendChild(document.createElement('tr'));
           for (var c=0;c<cols;++c){
@@ -339,6 +339,21 @@
 
   function handleCheckbox(cb) {
   show_tips = cb.checked;
+}
+
+
+function goBackToIndex() {
+  $(document).ready(function () {
+    $.post('/back', {
+      return_val: true
+    }).done(function() {
+        history.back();  // jesus I love you
+    }).fail(function() {
+        //console.log("uff")
+    });
+  });
+
+  
 }
 
 
@@ -1298,12 +1313,12 @@ function deleteTrack(title, artist, year) {
     tooltip.hide();
     $( "#slidersegmentlength" ).slider({ 
   orientation: "horizontal", 
-  step: 1, 
+  step: 2, 
   /*range: "min",
   value: 50,*/
   min: 1,
-  max: 5,
-  value: 3,
+  max: 7,
+  value: 5,
   start: function(event,ui) {
       if (show_tips)
         tooltip.fadeIn('fast');
@@ -1326,23 +1341,7 @@ function deleteTrack(title, artist, year) {
   });
 
 
-  function goBackToIndex() {
-    // currentlyPlaying = false;
-    // $.post('/play', {
-    //                       playing: currentlyPlaying
-    //                   }).done(function() {
-    //                       //console.log("Ok")
-    //                   }).fail(function() {
-    //                       //console.log("uff")
-    //                   });
-    $.post('/back', {
-          return_val: true
-        }).done(function() {
-          history.back();
-        }).fail(function() {
-            //console.log("uff")
-        });
-  }
+
 
   function createPresetsGrid() {
   	var grid = clickableGrid(5,1,function(el,row,col,i){

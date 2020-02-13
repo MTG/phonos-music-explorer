@@ -1,5 +1,5 @@
-Flask==0.10.1
-gevent==1.1.1
-numpy==1.9.2
-werkzeug==0.10.4
+Flask==1.1.1
+gevent==1.4.0
+numpy==1.16.6
+werkzeug==1.0.0
 

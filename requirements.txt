@@ -1,5 +1,5 @@
 Flask==1.1.1
 gevent==1.4.0
 numpy==1.16.6
-werkzeug==1.0.0
+werkzeug==2.2.3
 
